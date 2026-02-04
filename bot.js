@@ -14,6 +14,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 ========================================= */
 function getContextoActualizado() {
   try {
+    // Usamos process.cwd() para encontrar el archivo donde sea que estemos
     const filePath = path.join(process.cwd(), "datos_colegio.txt");
     return fs.readFileSync(filePath, "utf-8");
   } catch (error) {
