@@ -179,11 +179,43 @@
             "text": "¡Hola! Soy Pucarito, el asistente virtual del Colegio Pucará. Estoy aquí para ayudarte con tus consultas. 😊\n\n🏫 *Menú de Opciones - Colegio Pucará*\n    \n1️⃣ *Administración y Pagos* (Cuotas, CBU, Vencimientos)\n2️⃣ *Horarios y Clases* (Entradas, Salidas, Tardanzas)\n3️⃣ *Comedor y Kiosco* (Menú del día, Precios)\n4️⃣ *Uniformes* (Reglamento y dónde comprar)\n5️⃣ *Trámites* (Constancias, Pases, Inscripciones)\n    \n✍️ *Escribí tu consulta o el tema que te interese.*"
           }
         ]
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "hola"
+          }
+        ]
+      },
+      {
+        "parts": [
+          {
+            "text": "¡Hola! Soy Pucarito, el asistente virtual del Colegio Pucará. Estoy aquí para ayudarte con tus consultas. 😊\n\n🏫 *Menú de Opciones - Colegio Pucará*\n    \n1️⃣ *Administración y Pagos* (Cuotas, CBU, Vencimientos)\n2️⃣ *Horarios y Clases* (Entradas, Salidas, Tardanzas)\n3️⃣ *Comedor y Kiosco* (Menú del día, Precios)\n4️⃣ *Uniformes* (Reglamento y dónde comprar)\n5️⃣ *Trámites* (Constancias, Pases, Inscripciones)\n    \n✍️ *Escribí tu consulta o el tema que te interese.*"
+          }
+        ],
+        "role": "model"
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "hola"
+          }
+        ]
+      },
+      {
+        "role": "model",
+        "parts": [
+          {
+            "text": "¡Hola! Soy Pucarito, el asistente virtual del Colegio Pucará. Estoy aquí para ayudarte con tus consultas. 😊\n\n🏫 *Menú de Opciones - Colegio Pucará*\n    \n1️⃣ *Administración y Pagos* (Cuotas, CBU, Vencimientos)\n2️⃣ *Horarios y Clases* (Entradas, Salidas, Tardanzas)\n3️⃣ *Comedor y Kiosco* (Menú del día, Precios)\n4️⃣ *Uniformes* (Reglamento y dónde comprar)\n5️⃣ *Trámites* (Constancias, Pases, Inscripciones)\n    \n✍️ *Escribí tu consulta o el tema que te interese.*"
+          }
+        ]
       }
     ],
     "tempData": {},
-    "turns": 1,
-    "lastSeen": 1770182851494,
+    "turns": 2,
+    "lastSeen": 1770183298695,
     "isReturningUser": false
   }
 }
