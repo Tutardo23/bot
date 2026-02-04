@@ -1,0 +1,146 @@
+{
+  "padre_web": {
+    "status": "HANDOVER",
+    "greeted": true,
+    "lastIntent": null,
+    "history": [],
+    "tempData": {},
+    "turns": 6,
+    "lastSeen": 1770004719556,
+    "isReturningUser": false
+  },
+  "usuario_local_browser": {
+    "status": "ACTIVE",
+    "greeted": false,
+    "lastIntent": null,
+    "history": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "4"
+          }
+        ]
+      },
+      {
+        "role": "model",
+        "parts": [
+          {
+            "text": "¡Claro! Aquí te detallo la información sobre el uniforme reglamentario del Colegio Pucará:\n\n👕 **Uniforme de Educación Física (Días de gimnasia):**\n*   Jogging azul marino con escudo.\n*   Chomba blanca del colegio.\n*   Zapatillas blancas o negras (no de colores flúor).\n\n👔 **Uniforme de Gala (Lunes y Actos):**\n*   **Varones:** Pantalón gris de vestir, chomba blanca con escudo, zapatos negros, pullover bordó escote en V.\n*   **Mujeres:** Pollera escocesa (largo a la rodilla), chomba blanca, zapatos negros, medias bordó.\n\nPuedes adquirir los uniformes en \"Casa del Uniforme\" (Calle San Martín 500) o en \"Textil Tucumán\".\n\n¿Hay algo más en lo que pueda ayudarte? 😊"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Que dia es hoy?"
+          }
+        ]
+      },
+      {
+        "parts": [
+          {
+            "text": "Hoy es miércoles, 4 de febrero. 😊"
+          }
+        ],
+        "role": "model"
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Que dia es hoy?"
+          }
+        ]
+      },
+      {
+        "role": "model",
+        "parts": [
+          {
+            "text": "Hoy es miércoles, 4 de febrero. 😊"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Me podes hablar de messi"
+          }
+        ]
+      },
+      {
+        "parts": [
+          {
+            "text": "Disculpá, solo tengo información oficial del colegio. 🏫"
+          }
+        ],
+        "role": "model"
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Me podes hablar de messi"
+          }
+        ]
+      },
+      {
+        "role": "model",
+        "parts": [
+          {
+            "text": "Disculpá, solo tengo información oficial del colegio. 🏫"
+          }
+        ]
+      }
+    ],
+    "tempData": {},
+    "turns": 14,
+    "lastSeen": 1770175726974,
+    "isReturningUser": true
+  },
+  "5493816559383": {
+    "status": "ACTIVE",
+    "greeted": false,
+    "lastIntent": null,
+    "history": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Holaa"
+          }
+        ]
+      },
+      {
+        "parts": [
+          {
+            "text": "Solo estoy programado para responder dudas sobre el colegio."
+          }
+        ],
+        "role": "model"
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Holaa"
+          }
+        ]
+      },
+      {
+        "role": "model",
+        "parts": [
+          {
+            "text": "Solo estoy programado para responder dudas sobre el colegio."
+          }
+        ]
+      }
+    ],
+    "tempData": {},
+    "turns": 1,
+    "lastSeen": 1770006246580,
+    "isReturningUser": false
+  }
+}
