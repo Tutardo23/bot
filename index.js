@@ -130,3 +130,4 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor listo!`);
   console.log(`👉 Abrí en tu navegador: http://localhost:${PORT}/chat.html`);
 });
+export default app;
