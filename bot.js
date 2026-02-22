@@ -6,7 +6,6 @@ import { getSession, updateSession } from "./memory.js";
 
 dotenv.config();
 
-// Inicializamos cliente
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /* =========================================
@@ -14,9 +13,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 ========================================= */
 function getContextoActualizado() {
   try {
-    // Usamos process.cwd() para encontrar el archivo donde sea que estemos
     const filePath = path.join(process.cwd(), "datos_colegio.txt");
-    return fs.readFileSync(filePath, "utf-8");
+    return fs.readFileSync(filePath, "utf-8"); // Leer archivos fijos sí funciona en Vercel
   } catch (error) {
     console.error("Error leyendo datos_colegio.txt:", error);
     return "No hay información disponible por el momento.";
@@ -24,21 +22,23 @@ function getContextoActualizado() {
 }
 
 /* =========================================
-   CONTROLADOR PRINCIPAL (Con Menú)
+   CONTROLADOR PRINCIPAL (Nivel 100 - Corregido)
 ========================================= */
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
-  const session = getSession(from);
+  
+  // 1️⃣ PRIMER AWAIT: Buscamos la memoria en la nube de Vercel/Upstash
+  const session = await getSession(from);
 
   if (session.status === "HANDOVER") return null;
 
-  // 1. Limpieza de historial para evitar errores de Gemini
+  // Limpieza estricta de historial
   while (session.history.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
 
-  // 2. Datos dinámicos
+  // 🔥 ACÁ ESTÁN LAS VARIABLES QUE SE HABÍAN BORRADO 🔥
   const fechaActual = new Date().toLocaleString("es-AR", { 
     timeZone: "America/Argentina/Tucuman", 
     weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: 'numeric' 
@@ -46,39 +46,43 @@ export async function handleTestMessage(message) {
 
   const infoColegio = getContextoActualizado();
 
-  // 3. Prompt Maestro (CON MENÚ INTEGRADO)
+  // 🔥 PROMPT MAESTRO "MODO HUMANO CON EMOJIS" 🔥
   const promptMaestro = `
-    INSTRUCCIÓN DE SEGURIDAD MÁXIMA:
-    Eres "Pucarito", el asistente virtual del Colegio.
-    Tu conocimiento se limita EXCLUSIVAMENTE a la información provista abajo.
-    
-    INFORMACIÓN PERMITIDA (TU FUENTE DE VERDAD):
+    INSTRUCCIÓN DE SISTEMA - NIVEL DE SEGURIDAD MÁXIMO (PRIORIDAD 0):
+    Eres "Pucarito", el Asistente Virtual Oficial del Colegio Pucará.
+
+    📚 TU CEREBRO (FUENTE DE VERDAD ABSOLUTA):
     """
     ${infoColegio}
     """
 
-    CONTEXTO ACTUAL:
-    - Hoy es: ${fechaActual}.
+    ⏰ CONTEXTO EN TIEMPO REAL:
+    - Fecha y hora actual: ${fechaActual}.
 
-    DISEÑO DEL MENÚ DE OPCIONES:
-    Cuando debas mostrar el menú, usa ESTE formato exacto:
-    """
-    🏫 *Menú de Opciones - Colegio Pucará*
+    💎 REGLAS DE ORO DE COMPORTAMIENTO (MODO WHATSAPP):
+    1. 🗣️ **Tono Conversacional y Emojis:** Escribe como una persona real chateando por WhatsApp. Usa párrafos cortos y acompáñalos siempre con emojis estándar (👋, 🏫, ⏰, 🥪, 👕, 📝) para que el texto sea visual y amigable. ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita.
+    2. 🏁 **Saludo Inicial y Opciones:** Si el usuario te saluda, preséntate de forma cálida y ofrécele las consultas más comunes usando emojis como viñetas. 
+    Usa EXACTAMENTE este formato de saludo:
+    "¡Hola! 👋 Soy Pucarito, el asistente del colegio. ¿En qué te puedo ayudar hoy? 🏫
     
-    1️⃣ *Administración y Pagos* (Cuotas, CBU, Vencimientos)
-    2️⃣ *Horarios y Clases* (Entradas, Salidas, Tardanzas)
-    3️⃣ *Comedor y Kiosco* (Menú del día, Precios)
-    4️⃣ *Uniformes* (Reglamento y dónde comprar)
-    5️⃣ *Trámites* (Constancias, Pases, Inscripciones)
+    Podés consultarme sobre:
+    💰 Cuotas y administración
+    ⏰ Horarios de entrada y salida
+    🥪 Menú del comedor
+    👕 Uniforme reglamentario
+    📝 Trámites y constancias
     
-    ✍️ *Escribí tu consulta o el tema que te interese.*
-    """
+    Escribime tu consulta y te respondo al toque."
+    
+    3. 🚫 **Cero Saludos Repetitivos:** Si ya saludaste una vez, NO vuelvas a decir "Hola" en los siguientes mensajes. Ve directo a la respuesta.
+    4. 🤝 **Cortesía Básica:** Si el usuario dice "Gracias", "Todo bien", o manda un emoji, responde con amabilidad (ej: "¡De nada! 😊", "¡Qué bueno! 🙌") y no uses el escudo protector.
+    5. 🧠 **Respuestas Precisas:** Responde solo basado en tu "Cerebro". Nunca inventes fechas, precios ni reglas.
+    6. 🛡️ **Escudo Suave:** Si te preguntan cosas fuera de lugar, responde amablemente: "Disculpá, pero solo estoy acá para ayudarte con información del colegio. 🏫 ¿Necesitás saber algo de la escuela?"
 
-    REGLAS DE RESPUESTA:
-    1. 🏁 **Saludo/Ayuda:** Si el usuario saluda ("Hola", "Buenas") o pide "Menú/Ayuda", preséntate brevemente y MUESTRA EL MENÚ diseñado arriba.
-    2. 🧠 **Consultas:** Si pregunta algo específico (ej: "qué se come hoy"), responde DIRECTAMENTE la información sin mostrar el menú completo, salvo que sea necesario.
-    3. 🚫 **Fuera de tema:** Si la respuesta NO está en el texto (ej: "¿Quién ganó el partido?"), di: "Disculpá, solo tengo información oficial del colegio. 🏫".
-    4. 📞 **Humano:** Si piden hablar con alguien real, responde SOLO: "ACTION_HANDOVER".
+    🚨 PROTOCOLO DE DERIVACIÓN (HANDOVER):
+    Si el usuario tiene un problema complejo, está enojado, o pide hablar con un humano:
+    - PASO 1: NO lo derives inmediatamente. Dile: "Entiendo. 🤝 Para que en secretaría te puedan ayudar más rápido, ¿me dirías tu nombre completo y el del alumno por favor?".
+    - PASO 2: Solo cuando el usuario te dé esos datos, TU ÚNICA RESPUESTA DEBE SER EXACTAMENTE ESTA PALABRA: ACTION_HANDOVER.
   `;
 
   try {
@@ -89,8 +93,8 @@ export async function handleTestMessage(message) {
             parts: [{ text: promptMaestro }]
         },
         generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 500, // Aumenté un poco para que quepa el menú
+            temperature: 0.15,
+            maxOutputTokens: 500,
         }
     });
 
@@ -101,31 +105,34 @@ export async function handleTestMessage(message) {
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
 
+    // 🎯 CAPTURADOR DE DERIVACIÓN
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
-      updateSession(from, session);
-      return "📞 Entendido. Te derivo con secretaría.";
+      // 2️⃣ SEGUNDO AWAIT: Guardamos el estado de Handover en la nube
+      await updateSession(from, session);
+      return "📞 ¡Gracias! Tus datos y toda nuestra charla ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
     }
 
     session.history.push({ role: "user", parts: [{ text: text }] });
     session.history.push({ role: "model", parts: [{ text: botResponse }] });
 
-    if (session.history.length > 10) {
-      session.history = session.history.slice(-10);
+    if (session.history.length > 14) {
+      session.history = session.history.slice(-14);
     }
 
-    updateSession(from, session);
+    // 3️⃣ TERCER AWAIT: Guardamos el historial de la charla en la nube
+    await updateSession(from, session);
     
     return botResponse;
 
   } catch (error) {
     console.error("Error IA:", error);
-    // Reset de emergencia si se rompe la memoria
     if (error.message && error.message.includes("role 'user'")) {
         session.history = [];
-        updateSession(from, session);
-        return "Tuve un error de memoria. Por favor, saludame de nuevo.";
+        // 4️⃣ CUARTO AWAIT: Guardamos el historial reseteado por error en la nube
+        await updateSession(from, session);
+        return "Disculpá, se me reseteó la conexión. ¿Me repetirías lo último? 😅";
     }
-    return "Tuve un pequeño error técnico. ¿Podrías repetir?";
+    return "Tuve un pequeño micro-corte técnico. ¿Podrías escribirlo de nuevo?";
   }
 }

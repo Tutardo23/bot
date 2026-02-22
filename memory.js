@@ -1,99 +1,20 @@
-import fs from "fs";
-import path from "path";
+import { Redis } from '@upstash/redis';
+import dotenv from 'dotenv';
 
-const DB_FILE = path.join(process.cwd(), "sessions_db.json");
-const SESSION_TIMEOUT_MS = 1000 * 60 * 60 * 4; // 4 horas
-const ONE_DAY_MS = 1000 * 60 * 60 * 24;
+dotenv.config();
 
-let sessions = {};
+// Conexión a la base de datos de Vercel (Upstash)
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+});
 
-/* ================================
-   CARGA INICIAL SEGURA
-================================ */
-try {
-  if (fs.existsSync(DB_FILE)) {
-    const rawData = fs.readFileSync(DB_FILE, "utf-8");
-    // Verificamos que no esté vacío para evitar errores de parseo
-    if (rawData.trim()) {
-        sessions = JSON.parse(rawData);
-    }
-  }
-} catch (err) {
-  console.error("⚠️ Error crítico cargando sesiones (iniciando vacío):", err);
-  sessions = {};
-}
+// En Redis el tiempo se maneja en segundos, no en milisegundos.
+// 4 horas = 14400 segundos
+const SESSION_TIMEOUT_SEC = 14400; 
 
 /* ================================
-   PERSISTENCIA ATÓMICA (ANTI-CORRUPCIÓN)
-================================ */
-let saveTimeout = null;
-
-function persistDebounced() {
-  // Si ya había un guardado pendiente, lo cancelamos para posponerlo
-  // Esto asegura que solo guardamos cuando el sistema se "calma" un poco
-  if (saveTimeout) clearTimeout(saveTimeout);
-
-  saveTimeout = setTimeout(() => {
-    try {
-      const tempFile = `${DB_FILE}.tmp`;
-      
-      // 1. Escribir en archivo temporal
-      fs.writeFileSync(tempFile, JSON.stringify(sessions, null, 2));
-      
-      // 2. Renombrar atómicamente (Reemplazo instantáneo)
-      // Si falla la escritura arriba, el archivo original NO se toca.
-      fs.renameSync(tempFile, DB_FILE);
-      
-    } catch (err) {
-      console.error("❌ Error guardando sesiones en disco:", err);
-    }
-  }, 1000); // Guardamos 1 segundo después del último cambio
-}
-
-/* ================================
-   SESIONES
-================================ */
-export function getSession(user) {
-  const now = Date.now();
-
-  // 1. Usuario Nuevo
-  if (!sessions[user]) {
-    sessions[user] = createNewSession(now);
-    persistDebounced();
-    return sessions[user];
-  }
-
-  // 2. Usuario que vuelve tras inactividad (Reset)
-  if (now - sessions[user].lastSeen > SESSION_TIMEOUT_MS) {
-    // Guardamos si era un usuario recurrente antes de resetear
-    const wasReturning = true; 
-    
-    sessions[user] = createNewSession(now);
-    sessions[user].isReturningUser = wasReturning;
-    
-    persistDebounced();
-    return sessions[user];
-  }
-
-  return sessions[user];
-}
-
-export function updateSession(user, data) {
-  if (!sessions[user]) return;
-
-  // Actualización eficiente
-  sessions[user] = {
-      ...sessions[user],
-      ...data,
-      lastSeen: Date.now(),
-      turns: sessions[user].turns + 1
-  };
-
-  persistDebounced();
-}
-
-/* ================================
-   FACTORY (Estructura Base)
+   FACTORY (Tu Estructura Base intacta)
 ================================ */
 function createNewSession(timestamp) {
   return {
@@ -109,23 +30,47 @@ function createNewSession(timestamp) {
 }
 
 /* ================================
-   GARBAGE COLLECTOR (Limpieza)
+   SESIONES (Nube)
 ================================ */
-// Se ejecuta cada 1 hora para borrar sesiones de más de 24hs
-setInterval(() => {
-  const now = Date.now();
-  let changed = false;
-  const userKeys = Object.keys(sessions);
+export async function getSession(user) {
+  try {
+    const session = await redis.get(user);
+    const now = Date.now();
 
-  for (const user of userKeys) {
-    if (now - sessions[user].lastSeen > ONE_DAY_MS) {
-      delete sessions[user];
-      changed = true;
+    // 1. Usuario recurrente (La sesión existe en Redis)
+    if (session) {
+      // Parseamos por si la librería lo devuelve como string
+      let parsedSession = typeof session === 'string' ? JSON.parse(session) : session;
+      return parsedSession;
     }
+  } catch (error) {
+    console.error("❌ Error leyendo de Upstash Redis:", error);
   }
 
-  if (changed) {
-      console.log("🧹 Limpieza de memoria realizada.");
-      persistDebounced();
+  // 2. Usuario Nuevo (o sesión que fue borrada por el recolector automático)
+  return createNewSession(Date.now());
+}
+
+export async function updateSession(user, data) {
+  try {
+    // Primero traemos la sesión actual para no pisar datos viejos
+    const currentSession = await getSession(user);
+
+    // Tu misma lógica de actualización eficiente
+    const updatedSession = {
+      ...currentSession,
+      ...data,
+      lastSeen: Date.now(),
+      turns: currentSession.turns + 1
+    };
+
+    // ¡ACÁ OCURRE LA MAGIA! 🪄
+    // Al pasarle "{ ex: SESSION_TIMEOUT_SEC }", le decimos a Redis:
+    // "Si este usuario no me habla por 4 horas, borrá esta sesión para siempre".
+    // Esto reemplaza tu setInterval y tu Garbage Collector al 100%.
+    await redis.set(user, JSON.stringify(updatedSession), { ex: SESSION_TIMEOUT_SEC });
+    
+  } catch (error) {
+    console.error("❌ Error guardando en Upstash Redis:", error);
   }
-}, 1000 * 60 * 60);
+}

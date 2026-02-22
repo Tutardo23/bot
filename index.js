@@ -1,7 +1,7 @@
 import express from "express";
 import axios from "axios";
 import dotenv from "dotenv";
-import path from "path"; // <--- NUEVO
+import path from "path";
 import { handleTestMessage } from "./bot.js";
 
 dotenv.config();
@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// 🟢 NUEVO: Servir archivos estáticos (HTML) de la carpeta public
+// Servir archivos estáticos (HTML) de la carpeta public
 app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
@@ -20,22 +20,35 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
    RUTA DE SIMULACIÓN LOCAL (Para tu navegador)
 ========================================= */
 app.post("/chat-local", async (req, res) => {
-  const { message } = req.body;
-  const userSimulatorId = "usuario_local_browser"; // ID ficticio para probar
+  try {
+    const { message } = req.body;
+    const userSimulatorId = "usuario_local_browser"; // ID ficticio para probar
 
-  console.log(`💻 Local: ${message}`);
+    console.log(`💻 Local: ${message}`);
 
-  // Simulamos la estructura que tiene un mensaje de WhatsApp real
-  const fakeMessageObj = {
-    from: userSimulatorId,
-    text: { body: message }
-  };
+    // Simulamos la estructura que tiene un mensaje de WhatsApp real
+    const fakeMessageObj = {
+      from: userSimulatorId,
+      text: { body: message }
+    };
 
-  // Le pasamos el mensaje falso a tu cerebro real
-  const respuesta = await handleTestMessage(fakeMessageObj);
+    // Le pasamos el mensaje falso a tu cerebro real
+    const respuesta = await handleTestMessage(fakeMessageObj);
 
-  // Devolvemos la respuesta directa al navegador
-  res.json({ reply: respuesta });
+    // Si la secretaria tomó el control (Handover), el bot devuelve null o un texto de aviso
+    if (respuesta === null) {
+      return res.json({ reply: "🤫 El bot está en silencio (Modo Humano activado)." });
+    }
+
+    // Devolvemos la respuesta directa al navegador
+    res.json({ reply: respuesta });
+
+  } catch (error) {
+    // 🔥 EL PARACAÍDAS: Si algo se rompe, lo muestra en la terminal y avisa a la web
+    console.error("\n🔥 ERROR GRAVE ATRAPADO EN INDEX.JS:");
+    console.error(error);
+    res.status(500).json({ reply: "❌ El código crasheó por detrás. Revisá la terminal de Visual Studio Code para ver el error exacto." });
+  }
 });
 
 /* =========================================
@@ -76,7 +89,14 @@ app.post("/webhook", async (req, res) => {
         const respuestaBot = await handleTestMessage(message);
 
         if (respuestaBot) {
-          await sendMessage(from, respuestaBot);
+          // 🔥 EL HACK ARGENTINO 🔥
+          // Transformamos el número que entra al formato loco que Meta guardó
+          let numeroDestino = from;
+          if (from === "5493816559383") {
+              numeroDestino = "54381156559383"; // El número exacto del recuadro gris
+          }
+
+          await sendMessage(numeroDestino, respuestaBot);
         }
       }
     }
@@ -85,7 +105,6 @@ app.post("/webhook", async (req, res) => {
     res.sendStatus(404);
   }
 });
-
 async function sendMessage(to, text) {
   try {
     await axios({
