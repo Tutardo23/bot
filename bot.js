@@ -33,8 +33,8 @@ export async function handleTestMessage(message) {
 
   if (session.status === "HANDOVER") return null;
 
-  // Limpieza estricta de historial
-  while (session.history.length > 0 && session.history[0].role === "model") {
+  // Limpieza estricta de historial para evitar el error del primer rol
+  while (session.history && session.history.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
 
@@ -78,6 +78,7 @@ export async function handleTestMessage(message) {
     4. 🤝 **Cortesía Básica:** Si el usuario dice "Gracias", "Todo bien", o manda un emoji, responde con amabilidad (ej: "¡De nada! 😊", "¡Qué bueno! 🙌") y no uses el escudo protector.
     5. 🧠 **Respuestas Precisas:** Responde solo basado en tu "Cerebro". Nunca inventes fechas, precios ni reglas.
     6. 🛡️ **Escudo Suave:** Si te preguntan cosas fuera de lugar, responde amablemente: "Disculpá, pero solo estoy acá para ayudarte con información del colegio. 🏫 ¿Necesitás saber algo de la escuela?"
+    7. 🫂 **Memoria Amigable:** Si el usuario te dice su nombre, recuérdalo y úsalo. Si te pregunta su nombre u otros detalles que ya conversaron, respóndele basándote en el historial de la charla, no apliques el Escudo Suave en esos casos.
 
     🚨 PROTOCOLO DE DERIVACIÓN (HANDOVER):
     Si el usuario tiene un problema complejo, está enojado, o pide hablar con un humano:
@@ -98,10 +99,12 @@ export async function handleTestMessage(message) {
         }
     });
 
+    // Iniciamos el chat pasándole el historial guardado
     const chat = model.startChat({
-      history: session.history,
+      history: session.history || [],
     });
 
+    // Le mandamos el mensaje a la IA
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
 
@@ -113,14 +116,21 @@ export async function handleTestMessage(message) {
       return "📞 ¡Gracias! Tus datos y toda nuestra charla ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
     }
 
-    session.history.push({ role: "user", parts: [{ text: text }] });
-    session.history.push({ role: "model", parts: [{ text: botResponse }] });
+    // 🔥 EL ARREGLO ESTÁ ACÁ 🔥
+    // Pedimos el historial oficial de Gemini y lo guardamos bien estructurado
+    const rawHistory = await chat.getHistory();
+    
+    session.history = rawHistory.map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.parts[0].text }]
+    }));
 
+    // Limitamos el historial a los últimos 14 mensajes para no gastar tokens de más
     if (session.history.length > 14) {
       session.history = session.history.slice(-14);
     }
 
-    // 3️⃣ TERCER AWAIT: Guardamos el historial de la charla en la nube
+    // 3️⃣ TERCER AWAIT: Guardamos el historial limpio en la nube
     await updateSession(from, session);
     
     return botResponse;
