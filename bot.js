@@ -88,7 +88,7 @@ export async function handleTestMessage(message) {
 
   try {
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash-lite", 
+        model: "gemini-2.5-pro", 
         systemInstruction: {
             role: "system",
             parts: [{ text: promptMaestro }]
