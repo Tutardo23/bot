@@ -9,6 +9,9 @@ dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+/* =========================================
+   CARGADOR DE INFORMACIÓN (Cerebro)
+========================================= */
 function getContextoActualizado() {
   try {
     const filePath = path.join(process.cwd(), "datos_colegio.txt");
@@ -19,22 +22,29 @@ function getContextoActualizado() {
   }
 }
 
+/* =========================================
+   CONTROLADOR PRINCIPAL
+========================================= */
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
 
-  // 1. Buscamos la sesión primero para tener el conversationId guardado
+  // 1️⃣ BUSCAMOS LA SESIÓN PRIMERO (Para tener el conversationId)
   const session = await getSession(from);
 
-  // 2. Mandamos a Chatwoot pasando la sesión para que use el mismo hilo
+  // 2️⃣ MANDAMOS EL MENSAJE DEL PADRE A CHATWOOT Y ESPERAMOS
+  // Le pasamos la 'session' para que use el ID de charla guardado
   await enviarAChatwoot(from, text, "incoming", session);
 
+  // Si el chat está en manos de un humano, el bot se calla
   if (session.status === "HANDOVER") return null;
 
+  // Limpieza de historial para evitar errores de roles en Gemini
   while (session.history && session.history.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
 
+  // Contexto de tiempo y datos del colegio
   const fechaActual = new Date().toLocaleString("es-AR", { 
     timeZone: "America/Argentina/Tucuman", 
     weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: 'numeric' 
@@ -42,46 +52,43 @@ export async function handleTestMessage(message) {
 
   const infoColegio = getContextoActualizado();
 
+  // 🔥 EL PROMPT MAESTRO PROTEGIDO 🔥
   const promptMaestro = `
     INSTRUCCIÓN DE SISTEMA:
     Eres "Pucarito", el Asistente Virtual Oficial del Colegio Pucará.
 
-    📚 TU CEREBRO (FUENTE DE VERDAD):
+    📚 TU CEREBRO (FUENTE DE VERDAD ABSOLUTA):
     """ ${infoColegio} """
 
     ⏰ CONTEXTO EN TIEMPO REAL:
     - Fecha y hora actual: ${fechaActual}.
 
     💎 REGLAS DE ORO DE COMPORTAMIENTO (MODO WHATSAPP):
-    1. 🗣️ Tono Conversacional y Emojis: Escribe como una persona real chateando por WhatsApp. Usa párrafos cortos y acompáñalos siempre con emojis estándar (👋, 🏫, ⏰, 🥪, 👕, 📝). 
+    1. 🗣️ Tono Conversacional y Emojis: Escribe como una persona real chateando. Usa párrafos cortos y emojis estándar (👋, 🏫, ⏰, 🥪, 👕, 📝). 
     2. 🚫 ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita.
-    3. 🏁 Saludo Inicial y Opciones: Si el usuario te saluda, preséntate de forma cálida y ofrécele las consultas más comunes usando emojis como viñetas. 
-    Usa EXACTAMENTE este formato de saludo:
-    "¡Hola! 👋 Soy Pucarito, el asistente del colegio. ¿En qué te puedo ayudar hoy? 🏫
-    
-    Podés consultarme sobre:
-    💰 Cuotas y administración
-    ⏰ Horarios de entrada y salida
-    🥪 Menú del comedor
-    👕 Uniforme reglamentario
-    📝 Trámites y constancias
-    
-    Escribime tu consulta y te respondo al toque."
-    
-    4. 🚫 Cero Saludos Repetitivos: Si ya saludaste una vez, NO vuelvas a decir "Hola".
-    5. 🧠 Respuestas Precisas: Responde solo basado en tu "Cerebro". Nunca inventes fechas, precios ni reglas.
-    6. 🛡️ Escudo Suave: Si te preguntan cosas fuera de lugar, responde: "Disculpá, pero solo estoy acá para ayudarte con información del colegio. 🏫 ¿Necesitás saber algo más?"
-    7. 🫂 Memoria Amigable: Si el usuario te dice su nombre, recuérdalo y úsalo.
+    3. 🏁 Saludo Inicial: Si el usuario te saluda, preséntate de forma cálida y ofrece ayuda.
+       Usa EXACTAMENTE este formato:
+       "¡Hola! 👋 Soy Pucarito, el asistente del colegio. ¿En qué te puedo ayudar hoy? 🏫
+       Podés consultarme sobre:
+       💰 Cuotas y administración
+       ⏰ Horarios de entrada y salida
+       🥪 Menú del comedor
+       👕 Uniforme reglamentario
+       📝 Trámites y constancias"
+    4. 🚫 Cero Saludos Repetitivos: Si ya saludaste, no vuelvas a decir "Hola".
+    5. 🧠 Respuestas Precisas: No inventes nada fuera del "Cerebro".
+    6. 🛡️ Escudo Suave: Si preguntan pavadas, di: "Disculpá, solo sé de temas del colegio. 🏫 ¿Necesitás saber algo más?"
+    7. 🫂 Memoria: Usa el nombre del usuario si te lo dice.
 
     🚨 PROTOCOLO DE DERIVACIÓN (HANDOVER):
-    Si el usuario tiene un problema complejo o pide hablar con un humano:
-    - PASO 1: Dile: "Entiendo. 🤝 Para que en secretaría te puedan ayudar más rápido, ¿me dirías tu nombre completo y el del alumno por favor?".
-    - PASO 2: Solo cuando el usuario te dé esos datos, responde ÚNICAMENTE: ACTION_HANDOVER.
+    Si el usuario tiene un problema complejo, está enojado o pide un humano:
+    - PASO 1: Dile: "Entiendo. 🤝 Para que en secretaría te ayuden más rápido, ¿me dirías tu nombre completo y el del alumno?".
+    - PASO 2: Solo cuando te dé esos datos, TU ÚNICA RESPUESTA DEBE SER: ACTION_HANDOVER.
   `;
 
   try {
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash", 
+        model: "gemini-1.5-flash", 
         systemInstruction: { role: "system", parts: [{ text: promptMaestro }] },
         generationConfig: { temperature: 0.15, maxOutputTokens: 500 }
     });
@@ -90,15 +97,17 @@ export async function handleTestMessage(message) {
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
 
-    // 3. Mandamos la respuesta de la IA a Chatwoot
+    // 3️⃣ MANDAMOS LA RESPUESTA DE LA IA A CHATWOOT Y ESPERAMOS
     await enviarAChatwoot(from, botResponse, "outgoing", session);
 
+    // 🎯 CAPTURADOR DE HANDOVER
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
       await updateSession(from, session);
       return "📞 ¡Gracias! Tus datos ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
     }
 
+    // Guardamos el historial en Upstash
     const rawHistory = await chat.getHistory();
     session.history = rawHistory.map(msg => ({
         role: msg.role,

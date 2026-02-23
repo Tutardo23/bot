@@ -1,88 +1,76 @@
 import { updateSession } from "./memory.js";
 
-const CHATWOOT_URL = process.env.CHATWOOT_BASE_URL || "https://app.chatwoot.com";
-const INBOX_TOKEN = process.env.CHATWOOT_INBOX_TOKEN;
+const ACCESS_TOKEN = process.env.CHATWOOT_ACCESS_TOKEN;
+const ACCOUNT_ID = "76081"; // Sacado de tu URL de Chatwoot
+const INBOX_ID = "150035";   // Sacado de tu configuración de bandeja
 
 export async function enviarAChatwoot(telefono, mensajeTexto, tipo = "incoming", session = null) {
   try {
-    if (!INBOX_TOKEN) {
-      console.error("❌ Error: Falta CHATWOOT_INBOX_TOKEN en las variables de entorno.");
-      return;
-    }
+    if (!ACCESS_TOKEN) return;
 
-    // 1. Limpieza de número para Argentina
+    // Normalización de número
     let telLimpio = telefono.replace(/\D/g, "");
-    if (telLimpio.startsWith("549")) {
-      telLimpio = "54" + telLimpio.substring(3);
-    }
+    if (telLimpio.startsWith("549")) telLimpio = "54" + telLimpio.substring(3);
 
-    // 2. Crear o buscar contacto en Chatwoot
-    const resContacto = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        identifier: telLimpio,
-        name: `Padre ${telLimpio}`,
-      }),
+    // 1. Buscar o crear contacto
+    const resBusqueda = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=${telLimpio}`, {
+        headers: { "api_access_token": ACCESS_TOKEN }
     });
-
-    const dataContacto = await resContacto.json();
-    const sourceId = dataContacto.source_id || dataContacto.payload?.contact?.source_id;
-
-    if (!sourceId) {
-      console.error("❌ No se pudo obtener el source_id del contacto.");
-      return;
+    const dataBusqueda = await resBusqueda.json();
+    
+    let contactId;
+    if (dataBusqueda.payload && dataBusqueda.payload.length > 0) {
+        contactId = dataBusqueda.payload[0].id;
+    } else {
+        const resNuevo = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/contacts`, {
+            method: 'POST',
+            headers: { "Content-Type": "application/json", "api_access_token": ACCESS_TOKEN },
+            body: JSON.stringify({ name: `Padre ${telLimpio}`, phone_number: `+${telLimpio}`, inbox_id: INBOX_ID })
+        });
+        const dataNuevo = await resNuevo.json();
+        contactId = dataNuevo.payload.contact.id;
     }
 
-    // 3. 🔒 Lógica de conversación única usando el ID de la sesión
+    // 2. Buscar o crear conversación
     let conversationId = session?.conversationId;
 
     if (!conversationId) {
-      // Si no hay ID en memoria, intentamos buscar si ya hay un chat abierto en Chatwoot
-      const resBusqueda = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`);
-      const chatsExistentes = await resBusqueda.json();
-      
-      const chatAbierto = Array.isArray(chatsExistentes) 
-        ? chatsExistentes.find(c => c.status !== "resolved") 
-        : null;
-
-      if (chatAbierto) {
-        conversationId = chatAbierto.id;
-      } else {
-        // Solo si no hay nada abierto, creamos una conversación nueva
-        const resNuevaConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+        const resConv = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`, {
+            headers: { "api_access_token": ACCESS_TOKEN }
         });
-        const dataNuevaConv = await resNuevaConv.json();
-        conversationId = dataNuevaConv.id;
-      }
+        const convs = await resConv.json();
+        const abierta = convs.payload ? convs.payload.find(c => c.status !== "resolved") : null;
 
-      // Guardamos el ID en la memoria de Upstash para futuros mensajes
-      if (session && conversationId) {
-        session.conversationId = conversationId;
-        await updateSession(telefono, session);
-      }
+        if (abierta) {
+            conversationId = abierta.id;
+        } else {
+            const resNuevaConv = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
+                method: 'POST',
+                headers: { "Content-Type": "application/json", "api_access_token": ACCESS_TOKEN },
+                body: JSON.stringify({ source_id: telLimpio, contact_id: contactId, inbox_id: INBOX_ID })
+            });
+            const dataNuevaConv = await resNuevaConv.json();
+            conversationId = dataNuevaConv.id;
+        }
+
+        if (session && conversationId) {
+            session.conversationId = conversationId;
+            await updateSession(telefono, session);
+        }
     }
 
-    // 4. Enviar el mensaje al hilo correcto
-    const resMensaje = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations/${conversationId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: mensajeTexto,
-        message_type: tipo,
-      }),
+    // 3. Enviar mensaje
+    await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json", "api_access_token": ACCESS_TOKEN },
+        body: JSON.stringify({ 
+            content: mensajeTexto, 
+            message_type: tipo === "incoming" ? 0 : 1 
+        })
     });
 
-    if (resMensaje.ok) {
-      console.log(`✅ Mensaje (${tipo}) sincronizado en hilo: ${conversationId}`);
-    } else {
-      console.error("❌ Error al enviar mensaje a Chatwoot.");
-    }
-
+    console.log(`✅ Sincronizado en Chatwoot: ${conversationId}`);
   } catch (error) {
-    console.error("❌ Error crítico en Chatwoot:", error.message);
+    console.error("❌ Error API Agente:", error.message);
   }
 }
