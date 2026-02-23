@@ -19,26 +19,36 @@ export async function enviarAChatwoot(telefono, mensajeTexto, tipo = "incoming")
     const dataContacto = await resContacto.json();
     const sourceId = dataContacto.source_id;
 
-    // 2. Creamos o recuperamos la conversación
-    const resConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    });
-    const dataConv = await resConv.json();
-    const conversationId = dataConv.id;
+    // 2. BÚSQUEDA INTELIGENTE: Nos fijamos si ya hay una conversación abierta
+    const resGetConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`);
+    const dataGetConv = await resGetConv.json();
 
-    // 3. Mandamos el mensaje a Chatwoot indicando si es del padre o del bot
+    let conversationId;
+    if (dataGetConv && dataGetConv.length > 0) {
+        // Ya existe un chat, usamos el hilo principal para no duplicar
+        conversationId = dataGetConv[0].id;
+    } else {
+        // No existe, creamos uno nuevito
+        const resConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const dataConv = await resConv.json();
+        conversationId = dataConv.id;
+    }
+
+    // 3. Mandamos el mensaje al hilo correcto
     await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
           content: mensajeTexto,
-          message_type: tipo // Acá decide si lo pone a la derecha o a la izquierda en tu pantalla
+          message_type: tipo 
       })
     });
     
-    console.log(`✅ Mensaje (${tipo}) reenviado a Chatwoot.`);
+    console.log(`✅ Mensaje (${tipo}) reenviado al chat de Chatwoot.`);
   } catch (error) {
     console.error("❌ Error conectando con Chatwoot:", error);
   }
