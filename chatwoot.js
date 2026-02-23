@@ -73,6 +73,23 @@ export async function enviarAChatwoot(
       }
     );
 
+    // 🔥 SI ES RESPUESTA AUTOMÁTICA, DESASIGNAR
+    if (tipo === "outgoing") {
+      await fetch(
+        `${CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversationId}/assignments`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "api_access_token": process.env.CHATWOOT_ACCESS_TOKEN,
+          },
+          body: JSON.stringify({
+            assignee_id: null,
+          }),
+        }
+      );
+    }
+
     console.log(`✅ ${telLimpio} → conversación ${conversationId}`);
   } catch (error) {
     console.error("❌ Error en Chatwoot:", error.message);
