@@ -1,5 +1,5 @@
 import { getSession, updateSession } from "./memory.js";
-console.log("🔥 VERSION CLOUD ACTIVA 🔥");
+
 const CHATWOOT_URL =
   process.env.CHATWOOT_BASE_URL || "https://app.chatwoot.com";
 const INBOX_TOKEN = process.env.CHATWOOT_INBOX_TOKEN;
