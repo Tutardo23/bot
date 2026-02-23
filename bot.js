@@ -1,3 +1,30 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import fs from "fs";
+import path from "path";
+import dotenv from "dotenv";
+import { getSession, updateSession } from "./memory.js";
+import { enviarAChatwoot } from "./chatwoot.js";
+
+dotenv.config();
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+/* =========================================
+   CARGADOR DE INFORMACIÓN (Cerebro del Bot)
+========================================= */
+function getContextoActualizado() {
+  try {
+    const filePath = path.join(process.cwd(), "datos_colegio.txt");
+    return fs.readFileSync(filePath, "utf-8");
+  } catch (error) {
+    console.error("Error leyendo datos_colegio.txt:", error);
+    return "No hay información disponible por el momento.";
+  }
+}
+
+/* =========================================
+   CONTROLADOR PRINCIPAL (Nivel 100)
+========================================= */
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
