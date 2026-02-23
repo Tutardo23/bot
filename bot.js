@@ -10,7 +10,7 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /* =========================================
-   CARGADOR DE INFORMACIÓN
+   CARGADOR DE INFORMACIÓN (Cerebro del Bot)
 ========================================= */
 function getContextoActualizado() {
   try {
@@ -23,131 +23,109 @@ function getContextoActualizado() {
 }
 
 /* =========================================
-   CONTROLADOR PRINCIPAL (Nivel 100 - Corregido)
+   CONTROLADOR PRINCIPAL (Nivel 100)
 ========================================= */
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
+  
+  // 🔥 1. MANDAMOS EL MENSAJE DEL PADRE A CHATWOOT Y ESPERAMOS 🔥
+  // Esto asegura que el chat se cree/busque antes de que la IA responda
+  await enviarAChatwoot(from, text, "incoming");
 
-  // 🔥 PRIMERO OBTENEMOS SESSION 🔥
+  // Buscamos la memoria en Upstash
   const session = await getSession(from);
 
-  // 🔥 ENVIAMOS A CHATWOOT CON SESSION 🔥
-  await enviarAChatwoot(from, text, "incoming", session);
-
+  // Si está en modo humano, el bot no hace nada
   if (session.status === "HANDOVER") return null;
 
-  // Limpieza estricta de historial
-  while (
-    session.history &&
-    session.history.length > 0 &&
-    session.history[0].role === "model"
-  ) {
+  // Limpieza de historial para evitar errores de roles de Gemini
+  while (session.history && session.history.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
 
-  const fechaActual = new Date().toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Tucuman",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "numeric",
+  // Variables de contexto en tiempo real
+  const fechaActual = new Date().toLocaleString("es-AR", { 
+    timeZone: "America/Argentina/Tucuman", 
+    weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: 'numeric' 
   });
 
   const infoColegio = getContextoActualizado();
 
-  // 🔥 TU PROMPT ORIGINAL INTACTO 🔥
+  // PROMPT MAESTRO - REGLAS DE PUQUI
   const promptMaestro = `
-    INSTRUCCIÓN DE SISTEMA - NIVEL DE SEGURIDAD MÁXIMO (PRIORIDAD 0):
+    INSTRUCCIÓN DE SISTEMA:
     Eres "Pucarito", el Asistente Virtual Oficial del Colegio Pucará.
 
-    📚 TU CEREBRO (FUENTE DE VERDAD ABSOLUTA):
-    """
-    ${infoColegio}
-    """
+    📚 TU CEREBRO (FUENTE DE VERDAD):
+    """ ${infoColegio} """
 
-    ⏰ CONTEXTO EN TIEMPO REAL:
-    - Fecha y hora actual: ${fechaActual}.
+    ⏰ CONTEXTO: Fecha/Hora actual: ${fechaActual}.
 
-    💎 REGLAS DE ORO DE COMPORTAMIENTO (MODO WHATSAPP):
-    1. 🗣️ **Tono Conversacional y Emojis:** Escribe como una persona real chateando por WhatsApp. Usa párrafos cortos y acompáñalos siempre con emojis estándar (👋, 🏫, ⏰, 🥪, 👕, 📝). ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita.
-    2. 🏁 **Saludo Inicial y Opciones:** Si el usuario te saluda, preséntate de forma cálida y ofrécele las consultas más comunes.
-    Usa EXACTAMENTE este formato de saludo:
-    "¡Hola! 👋 Soy Pucarito, el asistente del colegio. ¿En qué te puedo ayudar hoy? 🏫
-    
-    Podés consultarme sobre:
-    💰 Cuotas y administración
-    ⏰ Horarios de entrada y salida
-    🥪 Menú del comedor
-    👕 Uniforme reglamentario
-    📝 Trámites y constancias
-    
-    Escribime tu consulta y te respondo al toque."
-    
-    3. 🚫 **Cero Saludos Repetitivos:** Si ya saludaste una vez, NO vuelvas a decir "Hola".
-    4. 🤝 **Cortesía Básica:** Si el usuario es amable, responde igual.
-    5. 🧠 **Respuestas Precisas:** Responde solo basado en tu "Cerebro".
-    6. 🛡️ **Escudo Suave:** Si preguntan fuera de lugar, redirige amablemente a temas escolares.
-    7. 🫂 **Memoria Amigable:** Recuerda el nombre del usuario si te lo dice.
+    💎 REGLAS DE ORO:
+    1. 🗣️ Tono WhatsApp con emojis. Párrafos cortos.
+    2. 🚫 PROHIBIDO usar asteriscos (*) para negritas.
+    3. 🏁 Saludo Inicial: Si saludan, preséntate como Pucarito y ofrece ayuda sobre cuotas, horarios, menú, uniforme y trámites.
+    4. 🧠 No inventes datos. Si no sabes, usa el Escudo Suave.
+    5. 🛡️ Escudo Suave: "Disculpá, solo sé de cosas del colegio. 🏫 ¿En qué más te ayudo?"
 
     🚨 PROTOCOLO DE DERIVACIÓN (HANDOVER):
-    Si el usuario tiene un problema complejo o pide hablar con un humano:
+    Si el usuario está enojado o pide hablar con un humano:
     - PASO 1: Pide nombre completo y del alumno.
     - PASO 2: Solo con esos datos, responde ÚNICAMENTE: ACTION_HANDOVER.
   `;
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: {
-        role: "system",
-        parts: [{ text: promptMaestro }],
-      },
-      generationConfig: {
-        temperature: 0.15,
-        maxOutputTokens: 500,
-      },
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash-lite", 
+        systemInstruction: {
+            role: "system",
+            parts: [{ text: promptMaestro }]
+        },
+        generationConfig: {
+            temperature: 0.15,
+            maxOutputTokens: 500,
+        }
     });
 
+    // Iniciamos el chat con el historial de Upstash
     const chat = model.startChat({
       history: session.history || [],
     });
 
+    // Pedimos la respuesta a Gemini
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
 
-    // 🔥 RESPUESTA A CHATWOOT CON SESSION 🔥
-    await enviarAChatwoot(from, botResponse, "outgoing", session);
+    // 🔥 2. MANDAMOS LA RESPUESTA DE LA IA A CHATWOOT Y ESPERAMOS 🔥
+    // El 'await' es clave para que no se dupliquen los chats
+    await enviarAChatwoot(from, botResponse, "outgoing");
 
+    // 🎯 CAPTURADOR DE DERIVACIÓN A HUMANO
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
       await updateSession(from, session);
-      return "📞 ¡Gracias! Tus datos y toda nuestra charla ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
+      return "📞 ¡Gracias! Tus datos ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
     }
 
+    // Guardamos el historial actualizado en Upstash
     const rawHistory = await chat.getHistory();
-    session.history = rawHistory.map((msg) => ({
-      role: msg.role,
-      parts: [{ text: msg.parts[0].text }],
+    session.history = rawHistory.map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.parts[0].text }]
     }));
 
+    // Limitamos el historial para no saturar la memoria
     if (session.history.length > 14) {
       session.history = session.history.slice(-14);
     }
 
     await updateSession(from, session);
-
+    
     return botResponse;
+
   } catch (error) {
-    console.error("Error IA:", error);
-
-    if (error.message && error.message.includes("role 'user'")) {
-      session.history = [];
-      await updateSession(from, session);
-      return "Disculpá, se me reseteó la conexión. ¿Me repetirías lo último? 😅";
-    }
-
-    return "Tuve un pequeño micro-corte técnico. ¿Podrías escribirlo de nuevo?";
+    console.error("❌ Error en la lógica del bot:", error);
+    return "Tuve un pequeño micro-corte técnico. ¿Podrías escribirlo de nuevo? 😅";
   }
 }
