@@ -35,7 +35,10 @@ export async function handleTestMessage(message) {
   // 1️⃣ PRIMER AWAIT: Buscamos la memoria en la nube de Vercel/Upstash
   const session = await getSession(from);
 
-  if (session.status === "HANDOVER") return null;
+  if (session.status === "HANDOVER") {
+  console.log("Conversación en modo humano.");
+  return null;
+}
 
   // Limpieza estricta de historial para evitar el error del primer rol
   while (session.history && session.history.length > 0 && session.history[0].role === "model") {
@@ -92,7 +95,7 @@ export async function handleTestMessage(message) {
 
   try {
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash-lite", 
+        model: "gemini-2.5-flash", 
         systemInstruction: {
             role: "system",
             parts: [{ text: promptMaestro }]
