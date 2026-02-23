@@ -29,8 +29,8 @@ export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
   
-  // 🔥 MANDA EL MENSAJE DEL PADRE A CHATWOOT 🔥
-  enviarAChatwoot(from, text, "incoming");
+  // 🔥 AHORA SÍ: ESPERAMOS A QUE EL MENSAJE LLEGUE A CHATWOOT 🔥
+  await enviarAChatwoot(from, text, "incoming");
 
   // 1️⃣ PRIMER AWAIT: Buscamos la memoria en la nube de Vercel/Upstash
   const session = await getSession(from);
@@ -42,7 +42,7 @@ export async function handleTestMessage(message) {
     session.history.shift();
   }
 
-  // 🔥 ACÁ ESTÁN LAS VARIABLES QUE SE HABÍAN BORRADO 🔥
+  // Variables de contexto
   const fechaActual = new Date().toLocaleString("es-AR", { 
     timeZone: "America/Argentina/Tucuman", 
     weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: 'numeric' 
@@ -50,7 +50,7 @@ export async function handleTestMessage(message) {
 
   const infoColegio = getContextoActualizado();
 
-  // 🔥 PROMPT MAESTRO "MODO HUMANO CON EMOJIS" 🔥
+  // Prompt Maestro
   const promptMaestro = `
     INSTRUCCIÓN DE SISTEMA - NIVEL DE SEGURIDAD MÁXIMO (PRIORIDAD 0):
     Eres "Pucarito", el Asistente Virtual Oficial del Colegio Pucará.
@@ -64,8 +64,8 @@ export async function handleTestMessage(message) {
     - Fecha y hora actual: ${fechaActual}.
 
     💎 REGLAS DE ORO DE COMPORTAMIENTO (MODO WHATSAPP):
-    1. 🗣️ **Tono Conversacional y Emojis:** Escribe como una persona real chateando por WhatsApp. Usa párrafos cortos y acompáñalos siempre con emojis estándar (👋, 🏫, ⏰, 🥪, 👕, 📝) para que el texto sea visual y amigable. ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita.
-    2. 🏁 **Saludo Inicial y Opciones:** Si el usuario te saluda, preséntate de forma cálida y ofrécele las consultas más comunes usando emojis como viñetas. 
+    1. 🗣️ **Tono Conversacional y Emojis:** Escribe como una persona real chateando por WhatsApp. Usa párrafos cortos y acompáñalos siempre con emojis estándar (👋, 🏫, ⏰, 🥪, 👕, 📝). ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita.
+    2. 🏁 **Saludo Inicial y Opciones:** Si el usuario te saluda, preséntate de forma cálida y ofrécele las consultas más comunes.
     Usa EXACTAMENTE este formato de saludo:
     "¡Hola! 👋 Soy Pucarito, el asistente del colegio. ¿En qué te puedo ayudar hoy? 🏫
     
@@ -78,21 +78,21 @@ export async function handleTestMessage(message) {
     
     Escribime tu consulta y te respondo al toque."
     
-    3. 🚫 **Cero Saludos Repetitivos:** Si ya saludaste una vez, NO vuelvas a decir "Hola" en los siguientes mensajes. Ve directo a la respuesta.
-    4. 🤝 **Cortesía Básica:** Si el usuario dice "Gracias", "Todo bien", o manda un emoji, responde con amabilidad (ej: "¡De nada! 😊", "¡Qué bueno! 🙌") y no uses el escudo protector.
-    5. 🧠 **Respuestas Precisas:** Responde solo basado en tu "Cerebro". Nunca inventes fechas, precios ni reglas.
-    6. 🛡️ **Escudo Suave:** Si te preguntan cosas fuera de lugar, responde amablemente: "Disculpá, pero solo estoy acá para ayudarte con información del colegio. 🏫 ¿Necesitás saber algo de la escuela?"
-    7. 🫂 **Memoria Amigable:** Si el usuario te dice su nombre, recuérdalo y úsalo. Si te pregunta su nombre u otros detalles que ya conversaron, respóndele basándote en el historial de la charla, no apliques el Escudo Suave en esos casos.
+    3. 🚫 **Cero Saludos Repetitivos:** Si ya saludaste una vez, NO vuelvas a decir "Hola".
+    4. 🤝 **Cortesía Básica:** Si el usuario es amable, responde igual.
+    5. 🧠 **Respuestas Precisas:** Responde solo basado en tu "Cerebro".
+    6. 🛡️ **Escudo Suave:** Si preguntan fuera de lugar, redirige amablemente a temas escolares.
+    7. 🫂 **Memoria Amigable:** Recuerda el nombre del usuario si te lo dice.
 
     🚨 PROTOCOLO DE DERIVACIÓN (HANDOVER):
-    Si el usuario tiene un problema complejo, está enojado, o pide hablar con un humano:
-    - PASO 1: NO lo derives inmediatamente. Dile: "Entiendo. 🤝 Para que en secretaría te puedan ayudar más rápido, ¿me dirías tu nombre completo y el del alumno por favor?".
-    - PASO 2: Solo cuando el usuario te dé esos datos, TU ÚNICA RESPUESTA DEBE SER EXACTAMENTE ESTA PALABRA: ACTION_HANDOVER.
+    Si el usuario tiene un problema complejo o pide hablar con un humano:
+    - PASO 1: Pide nombre completo y del alumno.
+    - PASO 2: Solo con esos datos, responde ÚNICAMENTE: ACTION_HANDOVER.
   `;
 
   try {
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash-lite", 
+        model: "gemini-2.5-flash", 
         systemInstruction: {
             role: "system",
             parts: [{ text: promptMaestro }]
@@ -103,50 +103,41 @@ export async function handleTestMessage(message) {
         }
     });
 
-    // Iniciamos el chat pasándole el historial guardado
     const chat = model.startChat({
       history: session.history || [],
     });
 
-    // Le mandamos el mensaje a la IA
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
 
-    // 🔥 MANDA LA RESPUESTA DE LA IA A CHATWOOT 🔥
-    enviarAChatwoot(from, botResponse, "outgoing");
+    // 🔥 IMPORTANTE: ESPERAMOS A QUE CHATWOOT RECIBA LA RESPUESTA DE LA IA 🔥
+    await enviarAChatwoot(from, botResponse, "outgoing");
 
     // 🎯 CAPTURADOR DE DERIVACIÓN
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
-      // 2️⃣ SEGUNDO AWAIT: Guardamos el estado de Handover en la nube
       await updateSession(from, session);
       return "📞 ¡Gracias! Tus datos y toda nuestra charla ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
     }
 
-    // 🔥 EL ARREGLO ESTÁ ACÁ 🔥
-    // Pedimos el historial oficial de Gemini y lo guardamos bien estructurado
+    // Actualización de historial
     const rawHistory = await chat.getHistory();
-    
     session.history = rawHistory.map(msg => ({
         role: msg.role,
         parts: [{ text: msg.parts[0].text }]
     }));
 
-    // Limitamos el historial a los últimos 14 mensajes para no gastar tokens de más
     if (session.history.length > 14) {
       session.history = session.history.slice(-14);
     }
 
-    // 3️⃣ TERCER AWAIT: Guardamos el historial limpio en la nube
     await updateSession(from, session);
-    
     return botResponse;
 
   } catch (error) {
     console.error("Error IA:", error);
     if (error.message && error.message.includes("role 'user'")) {
         session.history = [];
-        // 4️⃣ CUARTO AWAIT: Guardamos el historial reseteado por error en la nube
         await updateSession(from, session);
         return "Disculpá, se me reseteó la conexión. ¿Me repetirías lo último? 😅";
     }
