@@ -134,8 +134,8 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-// Le pusimos 'export' para poder usarla desde cualquier lado si hace falta
-export async function sendMessage(to, text) {
+// 🔥 ACÁ ESTABA EL ERROR: LE SACAMOS EL "EXPORT" 🔥
+async function sendMessage(to, text) {
   try {
     await axios({
       method: "POST",
@@ -160,3 +160,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor listo!`);
   console.log(`👉 Abrí en tu navegador: http://localhost:${PORT}/chat.html`);
 });
+
+export default app;
