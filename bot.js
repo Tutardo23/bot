@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { getSession, updateSession } from "./memory.js";
+import { enviarAChatwoot } from "./chatwoot.js";
 
 dotenv.config();
 
@@ -28,6 +29,9 @@ export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
   
+  // 🔥 ESTA ES LA LÍNEA QUE PRENDE CHATWOOT 🔥
+  enviarAChatwoot(from, text);
+
   // 1️⃣ PRIMER AWAIT: Buscamos la memoria en la nube de Vercel/Upstash
   const session = await getSession(from);
 
