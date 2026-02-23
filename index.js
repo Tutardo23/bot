@@ -52,6 +52,34 @@ app.post("/chat-local", async (req, res) => {
 });
 
 /* =========================================
+   NUEVO: RUTA DE VUELTA DESDE CHATWOOT
+========================================= */
+app.post("/chatwoot-webhook", async (req, res) => {
+  try {
+    const data = req.body;
+
+    // Solo nos interesan los mensajes creados y que sean "outgoing" (escritos por un humano en Chatwoot)
+    if (data.event === "message_created" && data.message_type === "outgoing") {
+        
+        // Chatwoot guarda el numero de telefono en un campo llamado 'identifier'
+        const numeroTelefono = data.conversation.meta.sender.identifier;
+        const textoRespuesta = data.content;
+
+        console.log(`👨‍💼 Humano en Chatwoot responde a ${numeroTelefono}: ${textoRespuesta}`);
+
+        // Le mandamos el mensaje a Meta/WhatsApp
+        await sendMessage(numeroTelefono, textoRespuesta);
+    }
+    
+    // Le devolvemos un 200 a Chatwoot para decirle que recibimos bien la alerta
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("❌ Error procesando el webhook de Chatwoot:", error);
+    res.sendStatus(500);
+  }
+});
+
+/* =========================================
    RUTAS DE WHATSAPP REAL (Meta)
 ========================================= */
 // Verificación del Webhook
@@ -105,7 +133,9 @@ app.post("/webhook", async (req, res) => {
     res.sendStatus(404);
   }
 });
-async function sendMessage(to, text) {
+
+// Le pusimos 'export' para poder usarla desde cualquier lado si hace falta
+export async function sendMessage(to, text) {
   try {
     await axios({
       method: "POST",
@@ -130,4 +160,3 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor listo!`);
   console.log(`👉 Abrí en tu navegador: http://localhost:${PORT}/chat.html`);
 });
-export default app;

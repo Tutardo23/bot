@@ -15,7 +15,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 function getContextoActualizado() {
   try {
     const filePath = path.join(process.cwd(), "datos_colegio.txt");
-    return fs.readFileSync(filePath, "utf-8"); // Leer archivos fijos sí funciona en Vercel
+    return fs.readFileSync(filePath, "utf-8");
   } catch (error) {
     console.error("Error leyendo datos_colegio.txt:", error);
     return "No hay información disponible por el momento.";
@@ -29,8 +29,8 @@ export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
   
-  // 🔥 ESTA ES LA LÍNEA QUE PRENDE CHATWOOT 🔥
-  enviarAChatwoot(from, text);
+  // 🔥 MANDA EL MENSAJE DEL PADRE A CHATWOOT 🔥
+  enviarAChatwoot(from, text, "incoming");
 
   // 1️⃣ PRIMER AWAIT: Buscamos la memoria en la nube de Vercel/Upstash
   const session = await getSession(from);
@@ -111,6 +111,9 @@ export async function handleTestMessage(message) {
     // Le mandamos el mensaje a la IA
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
+
+    // 🔥 MANDA LA RESPUESTA DE LA IA A CHATWOOT 🔥
+    enviarAChatwoot(from, botResponse, "outgoing");
 
     // 🎯 CAPTURADOR DE DERIVACIÓN
     if (botResponse.includes("ACTION_HANDOVER")) {
