@@ -2,13 +2,13 @@ import { getSession, updateSession } from "./memory.js";
 
 const CHATWOOT_URL =
   process.env.CHATWOOT_BASE_URL || "https://app.chatwoot.com";
+
 const INBOX_TOKEN = process.env.CHATWOOT_INBOX_TOKEN;
 
 export async function enviarAChatwoot(
   telefono,
   mensajeTexto,
-  tipo = "incoming",
-  session = null
+  tipo = "incoming"
 ) {
   try {
     if (!INBOX_TOKEN) return;
@@ -19,7 +19,12 @@ export async function enviarAChatwoot(
       telLimpio = "54" + telLimpio.substring(3);
     }
 
-    // Crear o buscar contacto
+    // 🔹 Obtener sesión guardada
+    const session = await getSession(telefono);
+
+    let conversationId = session.conversationId;
+
+    // 🔹 Crear o buscar contacto
     const resContacto = await fetch(
       `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts`,
       {
@@ -38,29 +43,40 @@ export async function enviarAChatwoot(
 
     if (!sourceId) return;
 
-    // 🔒 USAR conversationId GUARDADA
-    let conversationId = session?.conversationId;
-
+    // 🔹 Si no hay conversación guardada, buscar o crear
     if (!conversationId) {
-      const resConv = await fetch(
-        `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        }
+      const resGetConv = await fetch(
+        `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`
       );
 
-      const dataConv = await resConv.json();
-      conversationId = dataConv.id;
+      const conversaciones = await resGetConv.json();
 
-      if (session) {
-        session.conversationId = conversationId;
-        await updateSession(telefono, session);
+      const convAbierta = Array.isArray(conversaciones)
+        ? conversaciones.find((c) => c.status !== "resolved")
+        : null;
+
+      if (convAbierta) {
+        conversationId = convAbierta.id;
+      } else {
+        const resConv = await fetch(
+          `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          }
+        );
+
+        const dataConv = await resConv.json();
+        conversationId = dataConv.id;
       }
+
+      // 🔹 Guardamos conversationId en memoria
+      session.conversationId = conversationId;
+      await updateSession(telefono, session);
     }
 
-    // Enviar mensaje
+    // 🔹 Enviar mensaje
     await fetch(
       `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations/${conversationId}/messages`,
       {
@@ -74,6 +90,7 @@ export async function enviarAChatwoot(
     );
 
     console.log(`✅ ${telLimpio} → conversación ${conversationId}`);
+
   } catch (error) {
     console.error("❌ Error en Chatwoot:", error.message);
   }
