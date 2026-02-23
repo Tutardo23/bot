@@ -1,63 +1,80 @@
-const ACCESS_TOKEN = process.env.CHATWOOT_ACCESS_TOKEN;
-const ACCOUNT_ID = "76081"; // ID de tu cuenta
-const INBOX_ID = "150035";   // ID de la bandeja Atención Pucará
+import { getSession, updateSession } from "./memory.js";
+console.log("🔥 VERSION CLOUD ACTIVA 🔥");
+const CHATWOOT_URL =
+  process.env.CHATWOOT_BASE_URL || "https://app.chatwoot.com";
+const INBOX_TOKEN = process.env.CHATWOOT_INBOX_TOKEN;
 
-export async function enviarAChatwoot(telefono, mensajeTexto, tipo = "incoming") {
+export async function enviarAChatwoot(
+  telefono,
+  mensajeTexto,
+  tipo = "incoming",
+  session = null
+) {
   try {
-    // 1. Buscamos si el contacto existe
-    const resBusqueda = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=${telefono}`, {
-        headers: { "api_access_token": ACCESS_TOKEN }
-    });
-    const dataBusqueda = await resBusqueda.json();
-    
-    let contactId;
-    if (dataBusqueda.payload && dataBusqueda.payload.length > 0) {
-        contactId = dataBusqueda.payload[0].id;
-    } else {
-        // Creamos contacto si no existe
-        const resNuevo = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/contacts`, {
-            method: 'POST',
-            headers: { "Content-Type": "application/json", "api_access_token": ACCESS_TOKEN },
-            body: JSON.stringify({ name: `Padre ${telefono}`, phone_number: `+${telefono}`, inbox_id: INBOX_ID })
-        });
-        const dataNuevo = await resNuevo.json();
-        contactId = dataNuevo.payload.contact.id;
+    if (!INBOX_TOKEN) return;
+
+    let telLimpio = telefono.replace(/\D/g, "");
+
+    if (telLimpio.startsWith("549")) {
+      telLimpio = "54" + telLimpio.substring(3);
     }
 
-    // 2. Buscamos conversación abierta
-    const resConv = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`, {
-        headers: { "api_access_token": ACCESS_TOKEN }
-    });
-    const conversaciones = await resConv.json();
-    
-    let conversationId;
-    const abierta = conversaciones.payload ? conversaciones.payload.find(c => c.status !== "resolved") : null;
+    // Crear o buscar contacto
+    const resContacto = await fetch(
+      `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier: telLimpio,
+          name: `Padre ${telLimpio}`,
+        }),
+      }
+    );
 
-    if (abierta) {
-        conversationId = abierta.id;
-    } else {
-        // Creamos conversación
-        const resNuevaConv = await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
-            method: 'POST',
-            headers: { "Content-Type": "application/json", "api_access_token": ACCESS_TOKEN },
-            body: JSON.stringify({ source_id: telefono, contact_id: contactId, inbox_id: INBOX_ID })
-        });
-        const dataNuevaConv = await resNuevaConv.json();
-        conversationId = dataNuevaConv.id;
+    const dataContacto = await resContacto.json();
+    const sourceId =
+      dataContacto.source_id || dataContacto.payload?.contact?.source_id;
+
+    if (!sourceId) return;
+
+    // 🔒 USAR conversationId GUARDADA
+    let conversationId = session?.conversationId;
+
+    if (!conversationId) {
+      const resConv = await fetch(
+        `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+
+      const dataConv = await resConv.json();
+      conversationId = dataConv.id;
+
+      if (session) {
+        session.conversationId = conversationId;
+        await updateSession(telefono, session);
+      }
     }
 
-    // 3. Mandamos el mensaje
-    await fetch(`https://app.chatwoot.com/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: { "Content-Type": "application/json", "api_access_token": ACCESS_TOKEN },
-        body: JSON.stringify({ 
-            content: mensajeTexto, 
-            message_type: tipo === "incoming" ? 0 : 1 // 0=padre, 1=bot
-        })
-    });
+    // Enviar mensaje
+    await fetch(
+      `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations/${conversationId}/messages`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: mensajeTexto,
+          message_type: tipo,
+        }),
+      }
+    );
 
-    console.log("✅ Chatwoot Sincronizado");
+    console.log(`✅ ${telLimpio} → conversación ${conversationId}`);
   } catch (error) {
-    console.error("❌ Error Chatwoot:", error.message);
+    console.error("❌ Error en Chatwoot:", error.message);
   }
 }
