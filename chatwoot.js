@@ -7,43 +7,51 @@ export async function enviarAChatwoot(telefono, mensajeTexto, tipo = "incoming")
   try {
     if (!INBOX_TOKEN) return;
 
-    // 1. Buscamos o creamos al contacto (esto ya lo tenés bien)
+    // 1. Buscamos o creamos al contacto
     const resContacto = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier: telefono, name: `WhatsApp ${telefono}` })
     });
+
     const dataContacto = await resContacto.json();
     const sourceId = dataContacto.source_id;
 
-    // 2. BUSCADOR DE CHAT ABIERTO: Miramos si ya hay una conversación que NO esté resuelta
+    // 2. BUSCADOR DE CHAT ABIERTO (CORREGIDO)
     const resGetConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`);
-    const conversaciones = await resGetConv.json();
+    const dataConvs = await resGetConv.json();
 
-    // Buscamos la que esté "open" o "pending"
+    // 🔥 Chatwoot a veces devuelve { payload: [...] }
+    const conversaciones = Array.isArray(dataConvs) ? dataConvs : dataConvs.payload || [];
+
     let conversationId;
-    const convAbierta = conversaciones.find(c => c.status === "open" || c.status === "pending");
+    const convAbierta = conversaciones.find(
+      c => c.status === "open" || c.status === "pending"
+    );
 
     if (convAbierta) {
-        conversationId = convAbierta.id; // ¡Encontramos el chat actual!
+      conversationId = convAbierta.id;
     } else {
-        // Si no hay ninguna abierta, recién ahí creamos una nueva
-        const resConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        });
-        const dataConv = await resConv.json();
-        conversationId = dataConv.id;
+      const resConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      const dataConv = await resConv.json();
+      conversationId = dataConv.id;
     }
 
-    // 3. Mandamos el mensaje al lugar correcto
+    // 3. Mandamos el mensaje al hilo correcto
     await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: mensajeTexto, message_type: tipo })
+      body: JSON.stringify({
+        content: mensajeTexto,
+        message_type: tipo
+      })
     });
-    
+
     console.log(`✅ Mensaje (${tipo}) enviado al hilo correcto.`);
   } catch (error) {
     console.error("❌ Error en Chatwoot:", error);
