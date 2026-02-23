@@ -7,44 +7,44 @@ export async function enviarAChatwoot(telefono, mensajeTexto, tipo = "incoming")
   try {
     if (!INBOX_TOKEN) return;
 
-    // 1. Limpieza de número (Formato internacional limpio)
-    // Esto evita que Chatwoot cree dos contactos para el mismo padre
+    // 1️⃣ LIMPIEZA DE NÚMERO: Clave para Argentina 🇦🇷
+    // Quitamos el '9' si existe para que Chatwoot no vea dos personas distintas
     let telLimpio = telefono.replace(/\D/g, ''); 
     if (telLimpio.startsWith("549")) {
-        telLimpio = "54" + telLimpio.substring(3); // Cambia 549381... a 54381...
+        telLimpio = "54" + telLimpio.substring(3); 
     }
 
-    // Pausa estratégica para evitar que la respuesta llegue antes que la pregunta
+    // Pausa de seguridad para que Chatwoot procese el mensaje anterior
     if (tipo === "outgoing") await sleep(1500); 
 
-    // 2. Buscar o crear el contacto
+    // 2️⃣ BUSCAR O CREAR CONTACTO
     const resContacto = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier: telLimpio, name: `WhatsApp ${telLimpio}` })
     });
     const dataContacto = await resContacto.json();
-    const sourceId = dataContacto.source_id;
+    const sourceId = dataContacto.source_id || dataContacto.payload?.contact?.source_id;
 
     if (!sourceId) {
-        console.error("❌ No se pudo obtener el Source ID de Chatwoot");
+        console.error("❌ Error: No se pudo obtener el ID del contacto.");
         return;
     }
 
-    // 3. Buscar conversación activa (que no esté resuelta)
+    // 3️⃣ BUSCAR CONVERSACIÓN EXISTENTE
     const resGetConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`);
     const conversaciones = await resGetConv.json();
 
     let conversationId;
-    // Buscamos cualquier chat que NO esté resuelto
-    const convExistente = Array.isArray(conversaciones) 
+    // Buscamos cualquier chat que NO esté resuelto (status open o pending)
+    const convAbierta = Array.isArray(conversaciones) 
         ? conversaciones.find(c => c.status !== "resolved") 
         : null;
 
-    if (convExistente) {
-        conversationId = convExistente.id;
+    if (convAbierta) {
+        conversationId = convAbierta.id;
     } else {
-        // Crear conversación nueva si no hay nada abierto
+        // Solo si no hay NADA abierto, creamos una nueva
         const resConv = await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -54,15 +54,16 @@ export async function enviarAChatwoot(telefono, mensajeTexto, tipo = "incoming")
         conversationId = dataConv.id;
     }
 
-    // 4. Enviar el mensaje final
+    // 4️⃣ ENVIAR EL MENSAJE
     await fetch(`${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: mensajeTexto, message_type: tipo })
     });
     
-    console.log(`✅ Chatwoot sincronizado (${tipo})`);
+    console.log(`✅ Chatwoot sincronizado: Mensaje ${tipo} en conversación ${conversationId}`);
+
   } catch (error) {
-    console.error("❌ Error crítico en Chatwoot:", error.message);
+    console.error("❌ Error en chatwoot.js:", error.message);
   }
 }
