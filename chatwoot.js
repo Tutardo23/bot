@@ -19,7 +19,7 @@ export async function enviarAChatwoot(
       telLimpio = "54" + telLimpio.substring(3);
     }
 
-    // Crear o buscar contacto
+    // Crear contacto
     const resContacto = await fetch(
       `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts`,
       {
@@ -36,9 +36,11 @@ export async function enviarAChatwoot(
     const sourceId =
       dataContacto.source_id || dataContacto.payload?.contact?.source_id;
 
-    if (!sourceId) return;
+    if (!sourceId) {
+      console.log("❌ No sourceId");
+      return;
+    }
 
-    // 🔒 USAR conversationId GUARDADA
     let conversationId = session?.conversationId;
 
     if (!conversationId) {
@@ -60,8 +62,8 @@ export async function enviarAChatwoot(
       }
     }
 
-    // Enviar mensaje
-    await fetch(
+    // Enviar mensaje SIEMPRE
+    const resMsg = await fetch(
       `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${sourceId}/conversations/${conversationId}/messages`,
       {
         method: "POST",
@@ -73,21 +75,29 @@ export async function enviarAChatwoot(
       }
     );
 
-    // 🔥 SI ES RESPUESTA AUTOMÁTICA, DESASIGNAR
+    console.log("Mensaje status:", resMsg.status);
+
+    // 🔥 DESASIGNACIÓN SEGURA
     if (tipo === "outgoing") {
-      await fetch(
-        `${CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversationId}/assignments`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "api_access_token": process.env.CHATWOOT_ACCESS_TOKEN,
-          },
-          body: JSON.stringify({
-            assignee_id: null,
-          }),
-        }
-      );
+      try {
+        const resAssign = await fetch(
+          `${CHATWOOT_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversationId}/assignments`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "api_access_token": process.env.CHATWOOT_ACCESS_TOKEN,
+            },
+            body: JSON.stringify({
+              assignee_id: null,
+            }),
+          }
+        );
+
+        console.log("Desasignación status:", resAssign.status);
+      } catch (err) {
+        console.log("⚠️ Falló desasignación pero mensaje enviado");
+      }
     }
 
     console.log(`✅ ${telLimpio} → conversación ${conversationId}`);
