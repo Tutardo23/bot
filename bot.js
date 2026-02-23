@@ -28,8 +28,9 @@ function getContextoActualizado() {
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
-
-  // 🔥 1. MANDAMOS EL MENSAJE DEL PADRE A CHATWOOT
+  
+  // 🔥 1. MANDAMOS EL MENSAJE DEL PADRE A CHATWOOT Y ESPERAMOS 🔥
+  // Esto asegura que el chat se cree/busque antes de que la IA responda
   await enviarAChatwoot(from, text, "incoming");
 
   // Buscamos la memoria en Upstash
@@ -39,25 +40,19 @@ export async function handleTestMessage(message) {
   if (session.status === "HANDOVER") return null;
 
   // Limpieza de historial para evitar errores de roles de Gemini
-  while (
-    session.history &&
-    session.history.length > 0 &&
-    session.history[0].role === "model"
-  ) {
+  while (session.history && session.history.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
 
-  const fechaActual = new Date().toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Tucuman",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "numeric",
+  // Variables de contexto en tiempo real
+  const fechaActual = new Date().toLocaleString("es-AR", { 
+    timeZone: "America/Argentina/Tucuman", 
+    weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: 'numeric' 
   });
 
   const infoColegio = getContextoActualizado();
 
+  // PROMPT MAESTRO - REGLAS DE PUQUI
   const promptMaestro = `
     INSTRUCCIÓN DE SISTEMA:
     Eres "Pucarito", el Asistente Virtual Oficial del Colegio Pucará.
@@ -81,55 +76,52 @@ export async function handleTestMessage(message) {
   `;
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
-      systemInstruction: {
-        role: "system",
-        parts: [{ text: promptMaestro }],
-      },
-      generationConfig: {
-        temperature: 0.15,
-        maxOutputTokens: 500,
-      },
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash", 
+        systemInstruction: {
+            role: "system",
+            parts: [{ text: promptMaestro }]
+        },
+        generationConfig: {
+            temperature: 0.15,
+            maxOutputTokens: 500,
+        }
     });
 
+    // Iniciamos el chat con el historial de Upstash
     const chat = model.startChat({
       history: session.history || [],
     });
 
+    // Pedimos la respuesta a Gemini
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
 
-    // 🎯 SI HAY HANDOVER
+    // 🔥 2. MANDAMOS LA RESPUESTA DE LA IA A CHATWOOT Y ESPERAMOS 🔥
+    // El 'await' es clave para que no se dupliquen los chats
+    await enviarAChatwoot(from, botResponse, "outgoing");
+
+    // 🎯 CAPTURADOR DE DERIVACIÓN A HUMANO
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
       await updateSession(from, session);
-
-      await enviarAChatwoot(
-        from,
-        "📞 ¡Gracias! Tus datos ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.",
-        "incoming"
-      );
-
-      return null;
+      return "📞 ¡Gracias! Tus datos ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
     }
 
-    // 🔥 2. MANDAMOS RESPUESTA DEL BOT A CHATWOOT
-    await enviarAChatwoot(from, botResponse, "incoming");
-
-    // Guardamos historial
+    // Guardamos el historial actualizado en Upstash
     const rawHistory = await chat.getHistory();
-    session.history = rawHistory.map((msg) => ({
-      role: msg.role,
-      parts: [{ text: msg.parts[0].text }],
+    session.history = rawHistory.map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.parts[0].text }]
     }));
 
+    // Limitamos el historial para no saturar la memoria
     if (session.history.length > 14) {
       session.history = session.history.slice(-14);
     }
 
     await updateSession(from, session);
-
+    
     return botResponse;
 
   } catch (error) {
