@@ -28,29 +28,36 @@ function getContextoActualizado() {
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
-  
-  // 🔥 AHORA SÍ: ESPERAMOS A QUE EL MENSAJE LLEGUE A CHATWOOT 🔥
-  await enviarAChatwoot(from, text, "incoming");
 
-  // 1️⃣ PRIMER AWAIT: Buscamos la memoria en la nube de Vercel/Upstash
+  // 🔥 PRIMERO OBTENEMOS SESSION 🔥
   const session = await getSession(from);
+
+  // 🔥 ENVIAMOS A CHATWOOT CON SESSION 🔥
+  await enviarAChatwoot(from, text, "incoming", session);
 
   if (session.status === "HANDOVER") return null;
 
-  // Limpieza estricta de historial para evitar el error del primer rol
-  while (session.history && session.history.length > 0 && session.history[0].role === "model") {
+  // Limpieza estricta de historial
+  while (
+    session.history &&
+    session.history.length > 0 &&
+    session.history[0].role === "model"
+  ) {
     session.history.shift();
   }
 
-  // Variables de contexto
-  const fechaActual = new Date().toLocaleString("es-AR", { 
-    timeZone: "America/Argentina/Tucuman", 
-    weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: 'numeric' 
+  const fechaActual = new Date().toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Tucuman",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "numeric",
+    minute: "numeric",
   });
 
   const infoColegio = getContextoActualizado();
 
-  // Prompt Maestro
+  // 🔥 TU PROMPT ORIGINAL INTACTO 🔥
   const promptMaestro = `
     INSTRUCCIÓN DE SISTEMA - NIVEL DE SEGURIDAD MÁXIMO (PRIORIDAD 0):
     Eres "Pucarito", el Asistente Virtual Oficial del Colegio Pucará.
@@ -91,16 +98,16 @@ export async function handleTestMessage(message) {
   `;
 
   try {
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash", 
-        systemInstruction: {
-            role: "system",
-            parts: [{ text: promptMaestro }]
-        },
-        generationConfig: {
-            temperature: 0.15,
-            maxOutputTokens: 500,
-        }
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: promptMaestro }],
+      },
+      generationConfig: {
+        temperature: 0.15,
+        maxOutputTokens: 500,
+      },
     });
 
     const chat = model.startChat({
@@ -110,21 +117,19 @@ export async function handleTestMessage(message) {
     const result = await chat.sendMessage(text);
     const botResponse = result.response.text();
 
-    // 🔥 IMPORTANTE: ESPERAMOS A QUE CHATWOOT RECIBA LA RESPUESTA DE LA IA 🔥
-    await enviarAChatwoot(from, botResponse, "outgoing");
+    // 🔥 RESPUESTA A CHATWOOT CON SESSION 🔥
+    await enviarAChatwoot(from, botResponse, "outgoing", session);
 
-    // 🎯 CAPTURADOR DE DERIVACIÓN
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
       await updateSession(from, session);
       return "📞 ¡Gracias! Tus datos y toda nuestra charla ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
     }
 
-    // Actualización de historial
     const rawHistory = await chat.getHistory();
-    session.history = rawHistory.map(msg => ({
-        role: msg.role,
-        parts: [{ text: msg.parts[0].text }]
+    session.history = rawHistory.map((msg) => ({
+      role: msg.role,
+      parts: [{ text: msg.parts[0].text }],
     }));
 
     if (session.history.length > 14) {
@@ -132,15 +137,17 @@ export async function handleTestMessage(message) {
     }
 
     await updateSession(from, session);
-    return botResponse;
 
+    return botResponse;
   } catch (error) {
     console.error("Error IA:", error);
+
     if (error.message && error.message.includes("role 'user'")) {
-        session.history = [];
-        await updateSession(from, session);
-        return "Disculpá, se me reseteó la conexión. ¿Me repetirías lo último? 😅";
+      session.history = [];
+      await updateSession(from, session);
+      return "Disculpá, se me reseteó la conexión. ¿Me repetirías lo último? 😅";
     }
+
     return "Tuve un pequeño micro-corte técnico. ¿Podrías escribirlo de nuevo?";
   }
 }
