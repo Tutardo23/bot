@@ -4,7 +4,7 @@ import path from "path";
 import dotenv from "dotenv";
 import { getSession, updateSession } from "./memory.js";
 import { enviarAChatwoot } from "./chatwoot.js";
-
+import { asignarAHumano } from "./chatwoot.js";
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -117,11 +117,13 @@ export async function handleTestMessage(message) {
 
     // 🎯 CAPTURADOR DE DERIVACIÓN
     if (botResponse.includes("ACTION_HANDOVER")) {
-      session.status = "HANDOVER";
-      // 2️⃣ SEGUNDO AWAIT: Guardamos el estado de Handover en la nube
-      await updateSession(from, session);
-      return "📞 ¡Gracias! Tus datos y toda nuestra charla ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
-    }
+  session.status = "HANDOVER";
+  await updateSession(from, session);
+
+  await asignarAHumano(from);
+
+  return "📞 ¡Gracias! Tus datos y toda nuestra charla ya fueron enviados a secretaría. En breve una persona te va a responder por este mismo medio.";
+}
 
     // 🔥 EL ARREGLO ESTÁ ACÁ 🔥
     // Pedimos el historial oficial de Gemini y lo guardamos bien estructurado
