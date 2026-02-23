@@ -14,27 +14,23 @@ export async function enviarAChatwoot(
       return;
     }
 
-    // 🔹 Normalizar número
     let telLimpio = telefono.replace(/\D/g, "");
 
     if (telLimpio.startsWith("549")) {
       telLimpio = "54" + telLimpio.substring(3);
     }
 
-    // 🔥 Endpoint correcto para Chatwoot Cloud
     const res = await fetch(
-      `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts`,
+      `${CHATWOOT_URL}/public/api/v1/inboxes/${INBOX_TOKEN}/contacts/${telLimpio}/conversations`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          identifier: telLimpio,
-          name: `Padre ${telLimpio}`,
           message: {
             content: mensajeTexto,
-            message_type: tipo, // "incoming" o "outgoing"
+            message_type: tipo,
           },
         }),
       }
@@ -43,8 +39,8 @@ export async function enviarAChatwoot(
     console.log("Mensaje status:", res.status);
 
     if (!res.ok) {
-      const errorText = await res.text();
-      console.log("Respuesta error:", errorText);
+      const text = await res.text();
+      console.log("Error detalle:", text);
     } else {
       console.log(`✅ ${telLimpio} enviado correctamente a Chatwoot`);
     }
