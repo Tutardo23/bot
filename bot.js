@@ -92,7 +92,7 @@ export async function handleTestMessage(message) {
 
   try {
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash", 
+        model: "gemini-2.5-flash", 
         systemInstruction: { role: "system", parts: [{ text: promptMaestro }] },
         generationConfig: { temperature: 0.15, maxOutputTokens: 500 }
     });
