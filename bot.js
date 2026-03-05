@@ -9,6 +9,9 @@ dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Cuántos minutos de inactividad para reactivar el bot tras un handover
+const HANDOVER_RESET_MINUTES = 120;
+
 /* =========================================
    CARGADOR DE INFORMACIÓN (Cerebro)
 ========================================= */
@@ -23,36 +26,72 @@ function getContextoActualizado() {
 }
 
 /* =========================================
+   LIMPIADOR DE HISTORIAL
+   Elimina asteriscos de respuestas viejas para que Gemini no las imite
+========================================= */
+function limpiarHistorial(history) {
+  return history.map(msg => ({
+    ...msg,
+    parts: msg.parts.map(part => ({
+      ...part,
+      text: part.text
+        .replace(/\*\*(.*?)\*\*/g, "$1") // Elimina **negrita**
+        .replace(/\*(.*?)\*/g, "$1")     // Elimina *cursiva*
+    }))
+  }));
+}
+
+/* =========================================
    CONTROLADOR PRINCIPAL
 ========================================= */
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text.body;
 
-  // 1️⃣ BUSCAMOS LA SESIÓN PRIMERO (Para tener el conversationId)
-  const session = await getSession(from);
+  // 1️⃣ Buscamos la sesión
+  let session = await getSession(from);
 
-  // 2️⃣ MANDAMOS EL MENSAJE DEL PADRE A CHATWOOT Y ESPERAMOS
-  // Le pasamos la 'session' para que use el ID de charla guardado
+  // 2️⃣ Si estaba en HANDOVER, chequeamos si pasaron las X horas para reactivar el bot
+  if (session.status === "HANDOVER") {
+    const minutosDesdeUltimoMensaje = (Date.now() - session.lastSeen) / 1000 / 60;
+    
+    if (minutosDesdeUltimoMensaje >= HANDOVER_RESET_MINUTES) {
+      // Pasaron las horas → reseteamos la sesión para que el bot retome
+      console.log(`🔄 Reactivando bot para ${from} después de ${Math.round(minutosDesdeUltimoMensaje)} minutos.`);
+      session = {
+        status: "ACTIVE",
+        greeted: false,
+        lastIntent: null,
+        history: [],
+        tempData: {},
+        turns: 0,
+        lastSeen: Date.now(),
+        isReturningUser: true
+      };
+    } else {
+      // Sigue en handover → el bot permanece en silencio
+      await enviarAChatwoot(from, text, "incoming", session);
+      // Actualizamos lastSeen para que el agente humano vea el mensaje
+      await updateSession(from, session);
+      return null;
+    }
+  }
+
+  // 3️⃣ Mandamos el mensaje entrante a Chatwoot
   await enviarAChatwoot(from, text, "incoming", session);
 
-  // Si el chat está en manos de un humano, el bot se calla
-  if (session.status === "HANDOVER") return null;
-
-  // Limpieza de historial para evitar errores de roles en Gemini
+  // Limpieza: el historial no puede empezar con un mensaje del modelo
   while (session.history && session.history.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
 
-  // Contexto de tiempo y datos del colegio
-  const fechaActual = new Date().toLocaleString("es-AR", { 
-    timeZone: "America/Argentina/Tucuman", 
-    weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: 'numeric' 
+  const fechaActual = new Date().toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Tucuman",
+    weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "numeric"
   });
 
   const infoColegio = getContextoActualizado();
 
-  // 🔥 EL PROMPT MAESTRO PROTEGIDO Y CON SOPORTE TÉCNICO 🔥
   const promptMaestro = `
     INSTRUCCIÓN DE SISTEMA:
     Eres "Pucarito", el Asistente Virtual Oficial del Colegio Pucará.
@@ -64,60 +103,71 @@ export async function handleTestMessage(message) {
 
     ⏰ CONTEXTO EN TIEMPO REAL:
     - Fecha y hora actual: ${fechaActual}.
+    - ¿Ya saludaste en esta sesión?: ${session.greeted ? "SÍ, ya saludaste. NO vuelvas a presentarte." : "NO, es el primer mensaje. Saluda y preséntate."}
 
     💎 REGLAS DE ORO DE COMPORTAMIENTO (MODO WHATSAPP):
-    1. 🗣️ Tono Conversacional y Emojis Profesionales: Escribe como una persona real chateando. Usa párrafos cortos y usa una librería de emojis profesionales y serios (ej: 🏫, ⏰, 📝, 💻, ✅, 🎓). 
-    2. 🚫 ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita.
-    3. 🏁 Saludo Inicial: Si el usuario te saluda, preséntate de forma cálida y ofrece ayuda.
-       Usa EXACTAMENTE este formato:
-       "¡Hola! 👋 Soy Pucarito, el asistente del colegio. ¿En qué te puedo ayudar hoy? 🏫
-       Podés consultarme sobre:
-       💰 Cuotas y administración
-       ⏰ Horarios de entrada y salida
-       🥪 Menú del comedor
-       👕 Uniforme reglamentario
-       💻 Accesos a Colegium y Classroom
-       📝 Trámites y constancias"
-    4. 🚫 Cero Saludos Repetitivos: Si ya saludaste, no vuelvas a decir "Hola".
-    5. 🧠 Respuestas Precisas: No inventes nada fuera del "Cerebro".
-    6. 🕵️‍♀️ Soporte Técnico Activo: Si te consultan por problemas con Colegium o Classroom, NO derives inmediatamente a un humano. Usa tu "Cerebro" para hacerle preguntas de diagnóstico al usuario. Pedile que pruebe el modo incógnito, que verifique qué mail está usando, que revise si es la app o la web, etc. Exprímele las opciones paso a paso como un verdadero técnico. Solo cuando el usuario te confirme que ya probó todo lo que le dijiste y sigue sin funcionar (o necesita un blanqueo de clave urgente), pasa al Protocolo de Derivación.
-    7. 🛡️ Escudo Suave: Si preguntan pavadas, di: "Disculpá, solo sé de temas del colegio. 🏫 ¿Necesitás saber algo más?"
-    8. 🫂 Memoria: Usa el nombre del usuario si te lo dice.
+    1. 🗣️ Tono Conversacional y Emojis: Escribe de forma cálida y profesional. Usa párrafos cortos y emojis (🏫, ⏰, 📝, 💻, ✅, 🎓).
+    2. 🚫 ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita. NUNCA uses **texto** ni *texto*.
+    3. 🏁 SALUDO INICIAL: Si el campo "¿Ya saludaste?" dice NO, SIEMPRE saludá y presentate antes de responder. Si dice SÍ, ve directo al grano sin saludar.
+    4. 🆕 CREACIÓN DE CUENTAS NUEVAS: Si el usuario pide explícitamente CREAR una cuenta nueva, dile:
+       "Entiendo. 🤝 Para que desde secretaría puedan generarte la cuenta nueva, ¿me pasarías tu nombre completo y tu DNI por favor? 📝"
+       Una vez que te respondan con esos datos, tu única respuesta debe ser exactamente: ACTION_HANDOVER
+    5. 🕵️‍♀️ DIAGNÓSTICO TÉCNICO: Si te dicen "Me olvidé la contraseña", "No me anda la cuenta" o similar, NO derives todavía. Investigá primero siguiendo los pasos del manual.
+    6. 🛡️ Escudo Suave: Si preguntan cosas fuera del colegio, decí que solo sabés de temas de la escuela.
+    7. 🫂 Memoria: Usá el nombre del usuario si te lo dijo.
 
     🚨 PROTOCOLO DE DERIVACIÓN (HANDOVER):
-    Si el usuario tiene un problema complejo, está muy enojado, necesita un reseteo de clave de Colegium que no podés solucionar, o pide un humano:
-    - PASO 1: Dile: "Entiendo. 🤝 Para que en secretaría o soporte técnico te ayuden más rápido, ¿me dirías tu nombre completo y el del alumno?".
-    - PASO 2: Solo cuando te dé esos datos, TU ÚNICA RESPUESTA DEBE SER: ACTION_HANDOVER.
+    SOLO derivás en estos tres casos:
+    1) Quieren crear una cuenta nueva y ya te dieron nombre y DNI.
+    2) Ya hiciste el diagnóstico técnico completo y no se solucionó, y el usuario ya te dio su nombre y el del alumno.
+    3) Piden explícitamente hablar con un humano y ya te dieron su nombre y el del alumno.
+
+    - PASO 1 (si no es creación de cuenta): Decí: "Entiendo. 🤝 Para que en soporte técnico puedan revisar tu caso, ¿me dirías tu nombre completo y el del alumno?"
+    - PASO 2: Cuando te den los datos, TU ÚNICA RESPUESTA DEBE SER EXACTAMENTE ESTO (nada más, nada menos): ACTION_HANDOVER
   `;
 
   try {
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash", 
-        systemInstruction: { role: "system", parts: [{ text: promptMaestro }] },
-        generationConfig: { temperature: 0.15, maxOutputTokens: 500 }
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: { role: "system", parts: [{ text: promptMaestro }] },
+      generationConfig: {
+        temperature: 0.15,
+        maxOutputTokens: 2000
+      }
     });
 
-    const chat = model.startChat({ history: session.history || [] });
+    // Limpiamos el historial de asteriscos antes de mandárselo a Gemini
+    const historialLimpio = limpiarHistorial(session.history || []);
+
+    const chat = model.startChat({ history: historialLimpio });
     const result = await chat.sendMessage(text);
-    const botResponse = result.response.text();
+    const botResponse = result.response.text().trim();
 
-    // 3️⃣ MANDAMOS LA RESPUESTA DE LA IA A CHATWOOT Y ESPERAMOS
-    await enviarAChatwoot(from, botResponse, "outgoing", session);
-
-    // 🎯 CAPTURADOR DE HANDOVER
+    // 🎯 CAPTURADOR DE HANDOVER — ANTES de mandar nada al usuario
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
       await updateSession(from, session);
-      return "📞 ¡Listo! Tus datos y tu consulta ya fueron enviados a secretaría técnica. En breve una persona te va a responder por este mismo medio para solucionarlo.";
+
+      // Mensaje amigable que sí le llega al usuario
+      const mensajeHandover = "📞 ¡Listo! Tus datos ya fueron enviados al equipo. En breve una persona te va a responder por este mismo medio. 😊";
+      await enviarAChatwoot(from, mensajeHandover, "outgoing", session);
+      return mensajeHandover;
     }
 
-    // Guardamos el historial en Upstash
+    // 4️⃣ Mandamos la respuesta normal a Chatwoot
+    await enviarAChatwoot(from, botResponse, "outgoing", session);
+
+    // Marcamos que ya saludamos
+    session.greeted = true;
+
+    // Guardamos historial (limpio, sin asteriscos)
     const rawHistory = await chat.getHistory();
     session.history = rawHistory.map(msg => ({
-        role: msg.role,
-        parts: [{ text: msg.parts[0].text }]
+      role: msg.role,
+      parts: [{ text: msg.parts[0].text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1") }]
     }));
 
+    // Máximo 14 turnos en memoria
     if (session.history.length > 14) {
       session.history = session.history.slice(-14);
     }

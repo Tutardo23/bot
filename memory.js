@@ -3,22 +3,23 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Conexión a la base de datos de Vercel (Upstash)
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
   token: process.env.KV_REST_API_TOKEN,
 });
 
-// En Redis el tiempo se maneja en segundos, no en milisegundos.
-// 4 horas = 14400 segundos
-const SESSION_TIMEOUT_SEC = 14400; 
+// 4 horas en segundos (tiempo máximo de inactividad para sesiones ACTIVAS)
+const SESSION_TIMEOUT_SEC = 14400;
+
+// 4 horas en milisegundos (para comparar con Date.now())
+const SESSION_TIMEOUT_MS = SESSION_TIMEOUT_SEC * 1000;
 
 /* ================================
-   FACTORY (Tu Estructura Base intacta)
+   FACTORY
 ================================ */
 function createNewSession(timestamp) {
   return {
-    status: "ACTIVE", // ACTIVE, HANDOVER
+    status: "ACTIVE",
     greeted: false,
     lastIntent: null,
     history: [],
@@ -35,41 +36,41 @@ function createNewSession(timestamp) {
 export async function getSession(user) {
   try {
     const session = await redis.get(user);
-    const now = Date.now();
 
-    // 1. Usuario recurrente (La sesión existe en Redis)
     if (session) {
-      // Parseamos por si la librería lo devuelve como string
       let parsedSession = typeof session === 'string' ? JSON.parse(session) : session;
+
+      // ✅ FIX CLAVE: Si el último mensaje fue hace más de 4 horas, sesión nueva
+      // Esto resuelve el bug de que la sesión vivía eternamente con uso frecuente
+      const minutosInactivo = (Date.now() - parsedSession.lastSeen) / 1000 / 60;
+      
+      if (minutosInactivo > SESSION_TIMEOUT_SEC / 60) {
+        console.log(`🔄 Sesión expirada para ${user} (${Math.round(minutosInactivo)} minutos inactivo). Creando nueva.`);
+        return createNewSession(Date.now());
+      }
+
       return parsedSession;
     }
   } catch (error) {
     console.error("❌ Error leyendo de Upstash Redis:", error);
   }
 
-  // 2. Usuario Nuevo (o sesión que fue borrada por el recolector automático)
+  // Usuario nuevo o sesión borrada
   return createNewSession(Date.now());
 }
 
 export async function updateSession(user, data) {
   try {
-    // Primero traemos la sesión actual para no pisar datos viejos
-    const currentSession = await getSession(user);
-
-    // Tu misma lógica de actualización eficiente
     const updatedSession = {
-      ...currentSession,
       ...data,
       lastSeen: Date.now(),
-      turns: currentSession.turns + 1
+      turns: (data.turns || 0) + 1
     };
 
-    // ¡ACÁ OCURRE LA MAGIA! 🪄
-    // Al pasarle "{ ex: SESSION_TIMEOUT_SEC }", le decimos a Redis:
-    // "Si este usuario no me habla por 4 horas, borrá esta sesión para siempre".
-    // Esto reemplaza tu setInterval y tu Garbage Collector al 100%.
+    // El TTL de Redis se usa como red de seguridad adicional
+    // La lógica de expiración real está en getSession() arriba
     await redis.set(user, JSON.stringify(updatedSession), { ex: SESSION_TIMEOUT_SEC });
-    
+
   } catch (error) {
     console.error("❌ Error guardando en Upstash Redis:", error);
   }

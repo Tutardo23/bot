@@ -3,13 +3,12 @@ import axios from "axios";
 import dotenv from "dotenv";
 import path from "path";
 import { handleTestMessage } from "./bot.js";
+import { getSession, updateSession } from "./memory.js";
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
-
-// Servir archivos estáticos (HTML) de la carpeta public
 app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
@@ -17,61 +16,75 @@ const MY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 
 /* =========================================
-   RUTA DE SIMULACIÓN LOCAL (Para tu navegador)
+   RUTA DE SIMULACIÓN LOCAL
 ========================================= */
 app.post("/chat-local", async (req, res) => {
   try {
     const { message } = req.body;
-    const userSimulatorId = "usuario_local_browser"; // ID ficticio para probar
+    const userSimulatorId = "usuario_local_browser";
 
     console.log(`💻 Local: ${message}`);
 
-    // Simulamos la estructura que tiene un mensaje de WhatsApp real
     const fakeMessageObj = {
       from: userSimulatorId,
       text: { body: message }
     };
 
-    // Le pasamos el mensaje falso a tu cerebro real
     const respuesta = await handleTestMessage(fakeMessageObj);
 
-    // Si la secretaria tomó el control (Handover), el bot devuelve null o un texto de aviso
     if (respuesta === null) {
       return res.json({ reply: "🤫 El bot está en silencio (Modo Humano activado)." });
     }
 
-    // Devolvemos la respuesta directa al navegador
     res.json({ reply: respuesta });
 
   } catch (error) {
-    // 🔥 EL PARACAÍDAS: Si algo se rompe, lo muestra en la terminal y avisa a la web
     console.error("\n🔥 ERROR GRAVE ATRAPADO EN INDEX.JS:");
     console.error(error);
-    res.status(500).json({ reply: "❌ El código crasheó por detrás. Revisá la terminal de Visual Studio Code para ver el error exacto." });
+    res.status(500).json({ reply: "❌ El código crasheó por detrás. Revisá la terminal para ver el error exacto." });
   }
 });
 
 /* =========================================
-   NUEVO: RUTA DE VUELTA DESDE CHATWOOT
+   WEBHOOK DE CHATWOOT
+   Recibe mensajes de agentes humanos
 ========================================= */
 app.post("/chatwoot-webhook", async (req, res) => {
   try {
     const data = req.body;
 
-    // Solo nos interesan los mensajes creados y que sean "outgoing" (escritos por un humano en Chatwoot)
     if (data.event === "message_created" && data.message_type === "outgoing") {
-        
-        // Chatwoot guarda el numero de telefono en un campo llamado 'identifier'
-        const numeroTelefono = data.conversation.meta.sender.identifier;
-        const textoRespuesta = data.content;
 
-        console.log(`👨‍💼 Humano en Chatwoot responde a ${numeroTelefono}: ${textoRespuesta}`);
+      const numeroTelefono = data.conversation?.meta?.sender?.identifier;
+      const textoRespuesta = data.content?.trim();
 
-        // Le mandamos el mensaje a Meta/WhatsApp
-        await sendMessage(numeroTelefono, textoRespuesta);
+      if (!numeroTelefono || !textoRespuesta) {
+        return res.sendStatus(200);
+      }
+
+      // 🤖 COMANDO SECRETO: /bot — Reactiva el bot desde Chatwoot
+      // El agente escribe "/bot" en el chat y ese mensaje NO se envía a WhatsApp
+      if (textoRespuesta.toLowerCase() === "/bot") {
+        const session = await getSession(numeroTelefono);
+
+        // Reseteamos el estado a ACTIVE y borramos el historial para empezar limpio
+        session.status = "ACTIVE";
+        session.greeted = false;
+        session.history = [];
+
+        await updateSession(numeroTelefono, session);
+
+        console.log(`🤖 Bot reactivado para ${numeroTelefono} por un agente desde Chatwoot.`);
+
+        // No reenviamos nada a WhatsApp, el comando es invisible para el usuario
+        return res.sendStatus(200);
+      }
+
+      // Mensaje normal del agente → lo mandamos a WhatsApp
+      console.log(`👨‍💼 Agente responde a ${numeroTelefono}: ${textoRespuesta}`);
+      await sendMessage(numeroTelefono, textoRespuesta);
     }
-    
-    // Le devolvemos un 200 a Chatwoot para decirle que recibimos bien la alerta
+
     res.sendStatus(200);
   } catch (error) {
     console.error("❌ Error procesando el webhook de Chatwoot:", error);
@@ -82,7 +95,6 @@ app.post("/chatwoot-webhook", async (req, res) => {
 /* =========================================
    RUTAS DE WHATSAPP REAL (Meta)
 ========================================= */
-// Verificación del Webhook
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -98,7 +110,6 @@ app.get("/webhook", (req, res) => {
   }
 });
 
-// Recepción de mensajes reales
 app.post("/webhook", async (req, res) => {
   const body = req.body;
 
@@ -117,13 +128,10 @@ app.post("/webhook", async (req, res) => {
         const respuestaBot = await handleTestMessage(message);
 
         if (respuestaBot) {
-          // 🔥 EL HACK ARGENTINO 🔥
-          // Transformamos el número que entra al formato loco que Meta guardó
           let numeroDestino = from;
           if (from === "5493816559383") {
-              numeroDestino = "54381156559383"; // El número exacto del recuadro gris
+            numeroDestino = "54381156559383";
           }
-
           await sendMessage(numeroDestino, respuestaBot);
         }
       }
@@ -134,7 +142,6 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-// 🔥 ACÁ ESTABA EL ERROR: LE SACAMOS EL "EXPORT" 🔥
 async function sendMessage(to, text) {
   try {
     await axios({
