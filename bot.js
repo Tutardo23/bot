@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { getSession, updateSession } from "./memory.js";
-import { enviarAChatwoot } from "./chatwoot.js";
+import { enviarAChatwoot, asignarAHumano } from "./chatwoot.js";
 
 dotenv.config();
 
@@ -70,7 +70,7 @@ export async function handleTestMessage(message) {
       };
     } else {
       // Sigue en handover → el bot permanece en silencio
-      await enviarAChatwoot(from, text, "incoming", session);
+      await enviarAChatwoot(from, text, "incoming");
       // Actualizamos lastSeen para que el agente humano vea el mensaje
       await updateSession(from, session);
       return null;
@@ -78,7 +78,7 @@ export async function handleTestMessage(message) {
   }
 
   // 3️⃣ Mandamos el mensaje entrante a Chatwoot
-  await enviarAChatwoot(from, text, "incoming", session);
+  await enviarAChatwoot(from, text, "incoming");
 
   // Limpieza: el historial no puede empezar con un mensaje del modelo
   while (session.history && session.history.length > 0 && session.history[0].role === "model") {
@@ -108,7 +108,22 @@ export async function handleTestMessage(message) {
     💎 REGLAS DE ORO DE COMPORTAMIENTO (MODO WHATSAPP):
     1. 🗣️ Tono Conversacional y Emojis: Escribe de forma cálida y profesional. Usa párrafos cortos y emojis (🏫, ⏰, 📝, 💻, ✅, 🎓).
     2. 🚫 ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (*) para poner texto en negrita. NUNCA uses **texto** ni *texto*.
-    3. 🏁 SALUDO INICIAL: Si el campo "¿Ya saludaste?" dice NO, SIEMPRE saludá y presentate antes de responder. Si dice SÍ, ve directo al grano sin saludar.
+    3. 🏁 SALUDO INICIAL CON MENÚ: Si el campo "¿Ya saludaste?" dice NO, SIEMPRE saludá, presentate y mostrá este menú de consultas comunes exactamente así (sin asteriscos):
+
+       "¡Hola! 👋 Soy Pucarito, el asistente virtual del Colegio Pucará 🏫
+       
+       ¿En qué te puedo ayudar hoy? Estas son las consultas más frecuentes:
+       
+       💰 Cuotas y pagos
+       ⏰ Horarios y entradas
+       🍽️ Comedor del día
+       👕 Uniforme reglamentario
+       📜 Trámites (constancias, pases)
+       💻 Problemas con Colegium o Classroom
+       
+       Escribí tu consulta o elegí un tema 👇"
+       
+       Si el campo "¿Ya saludaste?" dice SÍ, ve directo al grano sin saludar ni mostrar el menú.
     4. 🆕 CREACIÓN DE CUENTAS NUEVAS: Si el usuario pide explícitamente CREAR una cuenta nueva, dile:
        "Entiendo. 🤝 Para que desde secretaría puedan generarte la cuenta nueva, ¿me pasarías tu nombre completo y tu DNI por favor? 📝"
        Una vez que te respondan con esos datos, tu única respuesta debe ser exactamente: ACTION_HANDOVER
@@ -150,12 +165,16 @@ export async function handleTestMessage(message) {
 
       // Mensaje amigable que sí le llega al usuario
       const mensajeHandover = "📞 ¡Listo! Tus datos ya fueron enviados al equipo. En breve una persona te va a responder por este mismo medio. 😊";
-      await enviarAChatwoot(from, mensajeHandover, "outgoing", session);
+      await enviarAChatwoot(from, mensajeHandover, "outgoing");
+
+      // 🔑 Asignamos la conversación al agente y la marcamos como pendiente en Chatwoot
+      await asignarAHumano(from);
+
       return mensajeHandover;
     }
 
     // 4️⃣ Mandamos la respuesta normal a Chatwoot
-    await enviarAChatwoot(from, botResponse, "outgoing", session);
+    await enviarAChatwoot(from, botResponse, "outgoing");
 
     // Marcamos que ya saludamos
     session.greeted = true;
