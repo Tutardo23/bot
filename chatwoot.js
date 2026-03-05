@@ -124,7 +124,7 @@ export async function asignarAHumano(telefono) {
       return;
     }
 
-    // Asignamos la conversación al agente
+    // Primero asignamos al agente
     const resAsignacion = await fetch(
       `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/assignments`,
       {
@@ -143,7 +143,7 @@ export async function asignarAHumano(telefono) {
       return;
     }
 
-    // También marcamos la conversación como "pendiente" para que aparezca en la bandeja
+    // Luego la marcamos como "open" para que aparezca en la bandeja "Mine" del agente
     await fetch(
       `${CHATWOOT_URL}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/toggle_status`,
       {
@@ -152,7 +152,7 @@ export async function asignarAHumano(telefono) {
           "Content-Type": "application/json",
           "api_access_token": API_TOKEN
         },
-        body: JSON.stringify({ status: "pending" })
+        body: JSON.stringify({ status: "open" })
       }
     );
 
