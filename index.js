@@ -5,7 +5,7 @@ import crypto from "crypto";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import path from "path"; // 🔥 AGREGA ESTO ARRIBA DE TODO
+import path from "path";
 import { handleTestMessage } from "./bot.js";
 import { getSession, updateSession, listHandovers } from "./memory.js";
 import { Redis } from "@upstash/redis";
@@ -43,12 +43,10 @@ const apiLimiter = rateLimit({
 
 app.use(cookieParser());
 app.use(express.json());
-app.use(express.static("public"));
 
-// 🔥 AGREGAMOS LA RUTA PARA FORZAR A VERCEL A LEER EL PANEL 🔥
-app.get("/admin.html", (req, res) => {
-  res.sendFile(path.join(process.cwd(), "admin.html"));
-});
+// 🔥 ESTA LÍNEA HACE LA MAGIA AHORA 🔥
+// Le dice a tu servidor que muestre directamente lo que hay en la carpeta "public"
+app.use(express.static("public")); 
 
 const MY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
