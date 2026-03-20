@@ -3,90 +3,54 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { getSession, updateSession } from "./memory.js";
-import { enviarAChatwoot, asignarAHumano } from "./chatwoot.js";
 
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
 const HANDOVER_RESET_MINUTES = 120;
 
-/* =========================================
-   CARGADOR DE INFORMACIÓN
-========================================= */
-function getContextoActualizado() {
+// Socket.io se inyecta desde index.js para emitir eventos al panel
+let _io = null;
+export function setIO(io) { _io = io; }
+function emitir(evento, data) { if (_io) _io.emit(evento, data); }
+
+/* ─────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────── */
+function getContexto() {
   try {
-    const filePath = path.join(process.cwd(), "datos_colegio.txt");
-    return fs.readFileSync(filePath, "utf-8");
-  } catch (error) {
-    console.error("Error leyendo datos_colegio.txt:", error);
-    return "No hay información disponible por el momento.";
+    return fs.readFileSync(path.join(process.cwd(), "datos_colegio.txt"), "utf-8");
+  } catch {
+    return "No hay información disponible.";
   }
 }
 
-/* =========================================
-   LIMPIADOR DE HISTORIAL
-   (el historial siempre se guarda como texto;
-    los medias se procesan en el turno actual
-    pero no se guardan en el historial)
-========================================= */
+function limpiarAsteriscos(texto) {
+  return texto.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
+}
+
 function limpiarHistorial(history) {
   return history.map(msg => ({
     ...msg,
-    parts: msg.parts.map(part => ({
-      ...part,
-      text: part.text
-        .replace(/\*\*(.*?)\*\*/g, "$1")
-        .replace(/\*(.*?)\*/g, "$1")
-    }))
+    parts: msg.parts.map(part => ({ ...part, text: limpiarAsteriscos(part.text) }))
   }));
 }
 
-/* =========================================
-   CONSTRUCTOR DE PARTS PARA GEMINI
-   Arma el array de partes del mensaje actual
-   incluyendo imagen o audio si existen.
-========================================= */
-function buildMessageParts(text, mediaData) {
-  const parts = [];
+// Arma el array de partes para Gemini (texto + imagen/audio si existe)
+function buildParts(text, mediaData) {
+  if (!mediaData) return [{ text: text || "" }];
 
-  if (mediaData) {
-    // Limpiamos el mimeType por si viene con parámetros extra
-    // Ej: "audio/ogg; codecs=opus" → "audio/ogg"
-    const cleanMimeType = mediaData.mimeType.split(";")[0].trim();
-    const isAudio = cleanMimeType.startsWith("audio/");
-    const isImage = cleanMimeType.startsWith("image/");
-
-    // Contexto para que Gemini entienda qué recibe
-    if (isAudio) {
-      parts.push({ text: "El usuario envió este audio de voz. Transcribilo internamente y respondé según el contexto del colegio:" });
-    } else if (isImage) {
-      parts.push({ text: "El usuario envió esta imagen. Analizala y respondé en contexto:" });
-    }
-
-    // El archivo en base64
-    parts.push({
-      inlineData: {
-        mimeType: cleanMimeType,
-        data: mediaData.base64
-      }
-    });
-
-    // Si hay caption o texto adicional del usuario, lo agregamos
-    if (text && text !== "[El usuario envió una imagen]" && text !== "[El usuario envió un audio de voz]") {
-      parts.push({ text });
-    }
-  } else {
-    // Mensaje de texto puro
-    parts.push({ text });
-  }
-
-  return parts;
+  const mime = mediaData.mimeType.split(";")[0].trim();
+  return [
+    { text: mime.startsWith("audio/") ? "El usuario envió este audio:" : "El usuario envió esta imagen:" },
+    { inlineData: { mimeType: mime, data: mediaData.base64 } },
+    ...(text?.trim() ? [{ text }] : [])
+  ];
 }
 
-/* =========================================
+/* ─────────────────────────────────────────────
    CONTROLADOR PRINCIPAL
-========================================= */
+───────────────────────────────────────────── */
 export async function handleTestMessage(message) {
   const from = message.from;
   const text = message.text?.body || "";
@@ -94,54 +58,57 @@ export async function handleTestMessage(message) {
 
   let session = await getSession(from);
 
-  // Si está en HANDOVER, chequeamos tiempo de inactividad
+  // ── HANDOVER activo ───────────────────────
   if (session.status === "HANDOVER") {
     const minutos = (Date.now() - session.lastSeen) / 1000 / 60;
+
     if (minutos >= HANDOVER_RESET_MINUTES) {
+      // Pasó el tiempo → bot retoma solo
       console.log(`🔄 Reactivando bot para ${from} (${Math.round(minutos)} min inactivo).`);
       session = { status: "ACTIVE", greeted: false, lastIntent: null, history: [], tempData: {}, turns: 0, lastSeen: Date.now(), isReturningUser: true };
     } else {
-      await enviarAChatwoot(from, text, "incoming");
+      // Bot en silencio → guardamos el mensaje del padre y avisamos al panel
+      const textoGuardado = mediaData ? `[${message.type === "audio" ? "🎙️ Audio" : "🖼️ Imagen"}] ${text}` : text;
+      session.history = [...(session.history || []), { role: "user", parts: [{ text: textoGuardado }] }];
       await updateSession(from, session);
+
+      emitir("nuevo_mensaje_handover", {
+        telefono: from,
+        mensaje: { text: textoGuardado, ts: Date.now() }
+      });
       return null;
     }
   }
 
-  // Notificamos a Chatwoot (con descripción si es media)
-  const textoParaChatwoot = mediaData
-    ? (message.type === "audio" ? "🎙️ [Audio de voz]" : `🖼️ [Imagen] ${text}`)
-    : text;
-  await enviarAChatwoot(from, textoParaChatwoot, "incoming");
-
-  // El historial no puede empezar con rol "model"
+  // Historial no puede empezar con "model"
   while (session.history?.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
 
   const fechaActual = new Date().toLocaleString("es-AR", {
     timeZone: "America/Argentina/Tucuman",
-    weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "numeric"
+    weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "numeric",
   });
 
-  const promptMaestro = `
+  const prompt = `
 Sos "Pucarito", asistente virtual del Colegio Pucará. Ayudás a padres y tutores.
 
 CONTEXTO:
 - Fecha/hora: ${fechaActual}
 - Primer mensaje: ${!session.greeted ? "NO — saludá, presentate y mostrá el menú" : "SÍ — ir directo al grano, sin saludar"}
-- Usuario conocido: ${session.isReturningUser ? "SÍ — podés hacer bienvenida breve" : "NO"}
+- Usuario recurrente: ${session.isReturningUser ? "SÍ — bienvenida breve" : "NO"}
 
 BASE DE CONOCIMIENTO:
-${getContextoActualizado()}
+${getContexto()}
 
 REGLAS:
-1. Nunca uses asteriscos (*) para negritas. Cero asteriscos.
-2. Párrafos cortos. Emojis moderados y funcionales.
-3. Si preguntan algo ajeno al colegio: decí que solo sabés temas escolares.
-4. Si el usuario te dijo su nombre, usalo.
+1. Nunca uses asteriscos (*) para negritas.
+2. Párrafos cortos. Emojis moderados.
+3. Temas ajenos al colegio: decí que solo sabés de la institución.
+4. Si te dijeron el nombre del usuario, usalo.
 5. Urgencia médica, bullying o accidente: respondé solo ACTION_HANDOVER de inmediato.
-6. Si recibís un audio: transcribilo internamente y respondé como si el usuario lo hubiese escrito.
-7. Si recibís una imagen: describí brevemente lo que ves y respondé en contexto del colegio.
+6. Audio: transcribilo y respondé como si fuera texto.
+7. Imagen: analizala y respondé en contexto.
 
 MENÚ INICIAL (solo si es el primer mensaje, copiar exacto):
 ¡Hola! 👋 Soy Pucarito, el asistente virtual del Colegio Pucará 🏫
@@ -157,50 +124,48 @@ MENÚ INICIAL (solo si es el primer mensaje, copiar exacto):
 
 Escribí tu consulta o elegí un tema 👇
 
-HANDOVER: Cuando la base de conocimiento indique ACTION_HANDOVER, respondé SOLO esa palabra, sin ningún texto extra.
+HANDOVER: Cuando corresponda, respondé SOLO la palabra ACTION_HANDOVER sin ningún texto extra.
   `.trim();
 
   try {
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: { role: "system", parts: [{ text: promptMaestro }] },
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+      systemInstruction: { role: "system", parts: [{ text: prompt }] },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
     });
 
-    const historialLimpio = limpiarHistorial(session.history || []);
-    const chat = model.startChat({ history: historialLimpio });
-
-    // Construimos las partes del mensaje (texto + media si existe)
-    const messageParts = buildMessageParts(text, mediaData);
-    const result = await chat.sendMessage(messageParts);
+    const chat = model.startChat({ history: limpiarHistorial(session.history || []) });
+    const result = await chat.sendMessage(buildParts(text, mediaData));
     const botResponse = result.response.text().trim();
 
-    // Capturador de HANDOVER
+    // ── HANDOVER detectado ─────────────────
     if (botResponse.includes("ACTION_HANDOVER")) {
       session.status = "HANDOVER";
       await updateSession(from, session);
-      const mensajeHandover = "📞 ¡Listo! Tus datos ya fueron enviados al equipo. En breve alguien te responde por acá. 😊";
-      await enviarAChatwoot(from, mensajeHandover, "outgoing");
-      await asignarAHumano(from);
-      return mensajeHandover;
-    }
 
-    await enviarAChatwoot(from, botResponse, "outgoing");
+      // Notificamos al panel con el historial completo
+      emitir("nuevo_handover", {
+        telefono: from,
+        lastSeen: Date.now(),
+        turns: session.turns,
+        history: session.history || [],
+        ultimoMensaje: text.substring(0, 80),
+      });
+
+      return "📞 ¡Listo! Tus datos fueron enviados al equipo. En breve alguien te responde por acá. 😊";
+    }
 
     session.greeted = true;
 
-    // Guardamos historial como texto (los medias no se guardan en historial)
+    // Guardamos historial limpio (máx. 14 turnos, sin asteriscos, sin base64)
     const rawHistory = await chat.getHistory();
     session.history = rawHistory
       .map(msg => ({
         role: msg.role,
         parts: [{
-          text: msg.parts
-            .map(p => p.text || (p.inlineData ? "[media]" : ""))
-            .filter(Boolean)
-            .join(" ")
-            .replace(/\*\*(.*?)\*\*/g, "$1")
-            .replace(/\*(.*?)\*/g, "$1")
+          text: limpiarAsteriscos(
+            msg.parts.map(p => p.text || (p.inlineData ? "[media]" : "")).filter(Boolean).join(" ")
+          )
         }]
       }))
       .slice(-14);
@@ -209,7 +174,7 @@ HANDOVER: Cuando la base de conocimiento indique ACTION_HANDOVER, respondé SOLO
     return botResponse;
 
   } catch (error) {
-    console.error("❌ Error en la lógica del bot:", error);
+    console.error("❌ Error en el bot:", error);
     return "Tuve un pequeño micro-corte técnico. ¿Podrías escribirlo de nuevo? 😅";
   }
 }

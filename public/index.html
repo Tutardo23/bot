@@ -1,255 +1,657 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Chat Colegio Pucará</title>
-    <style>
-        /* --- RESET Y FUENTES --- */
-        * { box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            background-color: #d1d7db; /* Color de fondo de WhatsApp Web */
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            margin: 0; 
-        }
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Panel Admin — Colegio Pucará</title>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"
+    integrity="sha512-luMnTJZ7onog1FejJxI9pwFeDJH9jU6a/TjNuqKo1p3gy2BOuFTJTJW7x2HxZKVE7AS0KAiS3AqiYyIz5m6Q=="
+    crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* --- CONTENEDOR PRINCIPAL (EL CELULAR) --- */
-        .phone { 
-            width: 100%; 
-            max-width: 450px; 
-            height: 95vh; 
-            background: #efe7dd; /* Fondo del chat */
-            background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png"); /* Doodle opcional */
-            background-blend-mode: overlay;
-            display: flex; 
-            flex-direction: column; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
-            border-radius: 20px;
-            overflow: hidden;
-            position: relative;
-        }
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #222536;
+      --border: #2e3348;
+      --accent: #4f6ef7;
+      --accent-hover: #3d5ae8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --text: #e8eaf0;
+      --text-muted: #6b7280;
+      --bubble-admin: #1e3a5f;
+      --bubble-user: #1e2535;
+    }
 
-        /* --- CABECERA --- */
-        .header { 
-            background: #008069; /* Verde WhatsApp Nuevo */
-            color: white; 
-            padding: 10px 15px; 
-            display: flex; 
-            align-items: center; 
-            gap: 15px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            z-index: 10;
-        }
-        .avatar {
-            width: 40px;
-            height: 40px;
-            background: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-        .info h3 { margin: 0; font-size: 16px; font-weight: 600; }
-        .info p { margin: 0; font-size: 12px; opacity: 0.8; margin-top: 2px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-        /* --- AREA DE CHAT --- */
-        .chat-box { 
-            flex: 1; 
-            padding: 20px 15px; 
-            overflow-y: auto; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 8px; 
-        }
+    #login-screen {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-        /* --- MENSAJES --- */
-        .message { 
-            padding: 8px 12px; 
-            border-radius: 7.5px; 
-            max-width: 85%; 
-            font-size: 14.2px; 
-            line-height: 19px; 
-            position: relative;
-            box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
-            word-wrap: break-word;
-        }
-        
-        .bot { 
-            background: white; 
-            align-self: flex-start; 
-            border-top-left-radius: 0; 
-        }
-        
-        .user { 
-            background: #e7ffdb; /* Verde clarito usuario */
-            align-self: flex-end; 
-            border-top-right-radius: 0; 
-        }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 48px;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
 
-        /* --- FORMATO NEGRITA Y ENLACES --- */
-        .message strong { font-weight: bold; }
+    .login-card .logo { text-align: center; font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+    .login-card .logo span { color: var(--accent); }
+    .login-card p { text-align: center; color: var(--text-muted); font-size: 14px; }
 
-        /* --- AREA DE TEXTO --- */
-        .input-area { 
-            background: #f0f2f5; 
-            padding: 10px; 
-            display: flex; 
-            align-items: center; 
-            gap: 10px; 
-        }
-        
-        input { 
-            flex: 1; 
-            padding: 12px 15px; 
-            border: none; 
-            border-radius: 8px; 
-            outline: none; 
-            font-size: 15px; 
-            background: white;
-        }
-        
-        button { 
-            background: #008069; 
-            color: white; 
-            border: none; 
-            width: 45px; 
-            height: 45px; 
-            border-radius: 50%; 
-            cursor: pointer; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            transition: background 0.2s;
-        }
-        
-        button:hover { background: #006c59; }
-        button svg { width: 20px; height: 20px; fill: white; margin-left: 2px; }
+    .login-card input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color .2s;
+    }
 
-        /* --- AJUSTES MOVIL --- */
-        @media (max-width: 480px) {
-            body { height: 100%; background: #efe7dd; }
-            .phone { 
-                max-width: 100%; 
-                height: 100%; 
-                border-radius: 0; 
-                box-shadow: none;
-            }
-        }
-    </style>
+    .login-card input:focus { border-color: var(--accent); }
+
+    .login-card .error {
+      background: #2d1515;
+      border: 1px solid var(--red);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--red);
+      display: none;
+    }
+
+    #app { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+
+    .header {
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .header-title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+
+    .badge-count {
+      background: var(--red);
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .main-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+
+    .conv-list { flex: 1; overflow-y: auto; }
+
+    .conv-item {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .conv-item:hover { background: var(--surface2); }
+    .conv-item.active { background: var(--surface2); border-left: 3px solid var(--accent); }
+    .conv-item .phone { font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between; }
+    .conv-item .phone .new-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+    .conv-item .preview { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-item .meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-muted);
+      padding: 24px;
+      text-align: center;
+    }
+
+    .empty-state .icon { font-size: 40px; }
+    .empty-state p { font-size: 13px; }
+
+    .chat-area { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+
+    .chat-placeholder {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-muted);
+    }
+
+    .chat-placeholder .icon { font-size: 56px; }
+
+    .chat-header {
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .chat-header.visible { display: flex; }
+    .chat-header-info { display: flex; flex-direction: column; }
+    .chat-header-phone { font-weight: 700; font-size: 15px; }
+    .chat-header-status { font-size: 12px; color: var(--yellow); }
+
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .msg { max-width: 75%; display: flex; flex-direction: column; gap: 3px; }
+    .msg.user { align-self: flex-start; }
+    .msg.model, .msg.admin { align-self: flex-end; }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .msg.user .msg-bubble { background: var(--bubble-user); border-bottom-left-radius: 4px; }
+    .msg.model .msg-bubble { background: var(--surface2); border: 1px solid var(--border); border-bottom-right-radius: 4px; }
+    .msg.admin .msg-bubble { background: var(--bubble-admin); border-bottom-right-radius: 4px; }
+
+    .msg-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 0 4px; color: var(--text-muted); }
+
+    .reply-bar {
+      padding: 14px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .reply-bar.visible { display: flex; }
+    .reply-input-row { display: flex; gap: 10px; align-items: flex-end; }
+
+    .reply-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 14px;
+      resize: none;
+      max-height: 120px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color .2s;
+    }
+
+    .reply-input:focus { border-color: var(--accent); }
+    .reply-hint { font-size: 11px; color: var(--text-muted); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all .15s;
+    }
+
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn:active:not(:disabled) { transform: scale(.97); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-success { background: var(--green); color: #fff; }
+    .btn-success:hover:not(:disabled) { filter: brightness(1.1); }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 13px;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all .3s;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { border-color: var(--green); }
+    #toast.error { border-color: var(--red); }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
 </head>
 <body>
 
-    <div class="phone">
-        <div class="header">
-            <div class="avatar">🤖</div>
-            <div class="info">
-                <h3>Pucarito (Bot)</h3>
-                <p>En línea</p>
-            </div>
-        </div>
+<div id="login-screen">
+  <div class="login-card">
+    <div class="logo">Pucará<span>.</span></div>
+    <p>Panel de atención — Ingresá tu contraseña</p>
+    <input type="password" id="pwd-input" placeholder="Contraseña" autocomplete="current-password"/>
+    <div class="error" id="login-error">Contraseña incorrecta. Intentá de nuevo.</div>
+    <button class="btn btn-primary" onclick="login()" style="width:100%;justify-content:center;padding:13px">
+      Ingresar →
+    </button>
+  </div>
+</div>
 
-        <div class="chat-box" id="chatBox">
-            <div class="message bot">
-                ¡Hola! 👋 Soy Pucarito.<br>
-                Escribí <b>Hola</b> para ver el menú.
-            </div>
-        </div>
+<div id="app">
+  <div class="header">
+    <div class="header-title">
+      <div class="status-dot"></div>
+      Panel Admin · Colegio Pucará
+    </div>
+    <div class="header-right">
+      <span id="handover-badge" class="badge-count" style="display:none">0</span>
+      <button class="btn btn-ghost" onclick="logout()" style="padding:6px 12px;font-size:12px">Salir</button>
+    </div>
+  </div>
 
-        <div class="input-area">
-            <input type="text" id="userInput" placeholder="Escribe un mensaje" autocomplete="off" onkeypress="handleEnter(event)">
-            <button onclick="sendMessage()">
-                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
-            </button>
+  <div class="main-layout">
+    <div class="sidebar">
+      <div class="sidebar-header">Conversaciones en espera</div>
+      <div class="conv-list" id="conv-list">
+        <div class="empty-state">
+          <div class="icon">💬</div>
+          <p>No hay conversaciones en espera.</p>
+          <p>Aparecerán acá cuando alguien necesite atención.</p>
         </div>
+      </div>
     </div>
 
-    <script>
-        const chatBox = document.getElementById('chatBox');
-        const input = document.getElementById('userInput');
+    <div class="chat-area">
+      <div class="chat-placeholder" id="chat-placeholder">
+        <div class="icon">📋</div>
+        <p style="font-size:15px;font-weight:600">Seleccioná una conversación</p>
+        <p style="font-size:13px">Elegí un caso de la lista para ver el historial y responder.</p>
+      </div>
 
-        // Función mágica para convertir Markdown (*negrita*) a HTML
-        function formatWhatsAppText(text) {
-            if (!text) return "";
-            return text
-                .replace(/\*(.*?)\*/g, '<strong>$1</strong>') // Negrita
-                .replace(/_(.*?)_/g, '<em>$1</em>')           // Cursiva
-                .replace(/\n/g, '<br>');                      // Saltos de línea
-        }
+      <div class="chat-header" id="chat-header">
+        <div class="chat-header-info">
+          <div class="chat-header-phone" id="chat-phone">+54 9 381...</div>
+          <div class="chat-header-status">🟡 Esperando atención humana</div>
+        </div>
+        <button class="btn btn-success" id="btn-reactivar" onclick="reactivarBot()">
+          🤖 Reactivar bot
+        </button>
+      </div>
 
-        async function sendMessage() {
-            const text = input.value.trim();
-            if (!text) return;
+      <div class="messages-container" id="messages-container"></div>
 
-            // 1. Mostrar mensaje del usuario
-            addMessage(text, 'user');
-            input.value = '';
-            input.focus();
+      <div class="reply-bar" id="reply-bar">
+        <div class="reply-input-row">
+          <textarea
+            class="reply-input"
+            id="reply-input"
+            placeholder="Escribí tu respuesta al padre/tutor..."
+            rows="2"
+            onkeydown="handleKey(event)"
+          ></textarea>
+          <button class="btn btn-primary" onclick="enviarRespuesta()">Enviar ↑</button>
+        </div>
+        <div class="reply-hint">Shift+Enter para enviar · Enter para nueva línea</div>
+      </div>
+    </div>
+  </div>
+</div>
 
-            // 2. Enviar al servidor local
-            try {
-                // Simular "Escribiendo..."
-                const loadingId = showLoading();
+<div id="toast"></div>
 
-                // 🔥 ACÁ ESTABA EL ERROR: AHORA DICE /chat-local 🔥
-                const res = await fetch('/chat-local', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
-                });
+<script>
+  // ── Sin localStorage — la sesión la maneja la cookie HttpOnly del servidor ──
 
-                const data = await res.json();
-                
-                // Quitar "Escribiendo..."
-                removeLoading(loadingId);
+  let socket = null;
+  let conversaciones = {};
+  let telefonoActivo = null;
+  let isLoggedIn = false;
 
-                // 3. Mostrar respuesta del bot
-                if (data.reply) {
-                    addMessage(data.reply, 'bot');
-                }
-            } catch (err) {
-                addMessage("❌ Error de conexión con el bot.", 'bot');
-            }
-        }
+  window.addEventListener("DOMContentLoaded", async () => {
+    document.getElementById("pwd-input").addEventListener("keydown", e => {
+      if (e.key === "Enter") login();
+    });
+    // Verificamos si ya hay sesión activa (cookie válida)
+    try {
+      const res = await fetch("/api/conversaciones");
+      if (res.ok) iniciarPanel();
+    } catch {}
+  });
 
-        function addMessage(text, sender) {
-            const div = document.createElement('div');
-            div.className = `message ${sender}`;
-            // Usamos innerHTML para que se vean las negritas
-            div.innerHTML = formatWhatsAppText(text);
-            chatBox.appendChild(div);
-            scrollToBottom();
-        }
+  /* ── AUTH ──────────────────────────────── */
+  async function login() {
+    const pwd = document.getElementById("pwd-input").value;
+    const errEl = document.getElementById("login-error");
+    errEl.style.display = "none";
 
-        function showLoading() {
-            const id = 'loading-' + Date.now();
-            const div = document.createElement('div');
-            div.id = id;
-            div.className = 'message bot';
-            div.style.fontStyle = 'italic';
-            div.style.color = '#777';
-            div.textContent = 'Escribiendo...';
-            chatBox.appendChild(div);
-            scrollToBottom();
-            return id;
-        }
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwd }),
+        credentials: "include", // Necesario para recibir la cookie
+      });
 
-        function removeLoading(id) {
-            const el = document.getElementById(id);
-            if (el) el.remove();
-        }
+      if (!res.ok) { errEl.style.display = "block"; return; }
+      iniciarPanel();
+    } catch { errEl.style.display = "block"; }
+  }
 
-        function scrollToBottom() {
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+  async function logout() {
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    location.reload();
+  }
 
-        function handleEnter(e) {
-            if (e.key === 'Enter') sendMessage();
-        }
-    </script>
+  /* ── PANEL ──────────────────────────────── */
+  function iniciarPanel() {
+    isLoggedIn = true;
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("app").style.display = "flex";
+    conectarSocket();
+    cargarConversaciones();
+  }
+
+  /* ── SOCKET.IO ──────────────────────────── */
+  function conectarSocket() {
+    socket = io({ withCredentials: true });
+
+    socket.on("connect_error", () => {
+      toast("Error de conexión. Verificá tu sesión.", "error");
+    });
+
+    socket.on("nuevo_handover", (conv) => {
+      conversaciones[conv.telefono] = conv;
+      renderConvList();
+      toast(`📲 Nuevo caso: +${conv.telefono}`, "success");
+      notificarNavegador(`Nuevo caso — +${conv.telefono}`);
+    });
+
+    socket.on("nuevo_mensaje_handover", ({ telefono, mensaje }) => {
+      if (!conversaciones[telefono]) return;
+      conversaciones[telefono].history.push({ role: "user", parts: [{ text: mensaje.text }] });
+      conversaciones[telefono].ultimoMensaje = mensaje.text.substring(0, 80);
+      conversaciones[telefono].lastSeen = mensaje.ts;
+      renderConvList();
+      if (telefonoActivo === telefono) renderMessages(telefono);
+    });
+
+    socket.on("mensaje_enviado", ({ telefono, mensaje }) => {
+      if (!conversaciones[telefono]) return;
+      conversaciones[telefono].history.push({ role: "model", parts: [{ text: `[Admin]: ${mensaje}` }] });
+      if (telefonoActivo === telefono) renderMessages(telefono);
+    });
+
+    socket.on("bot_reactivado", ({ telefono }) => {
+      delete conversaciones[telefono];
+      if (telefonoActivo === telefono) cerrarChat();
+      renderConvList();
+      toast(`🤖 Bot reactivado para +${telefono}`, "success");
+    });
+  }
+
+  /* ── API CALLS (con credentials: "include" para la cookie) ── */
+  async function apiFetch(url, options = {}) {
+    const res = await fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    });
+    if (res.status === 401) { location.reload(); return null; }
+    return res;
+  }
+
+  async function cargarConversaciones() {
+    const res = await apiFetch("/api/conversaciones");
+    if (!res) return;
+    const lista = await res.json();
+    conversaciones = {};
+    lista.forEach(c => conversaciones[c.telefono] = c);
+    renderConvList();
+  }
+
+  /* ── RENDER ──────────────────────────────── */
+  function renderConvList() {
+    const el = document.getElementById("conv-list");
+    const badge = document.getElementById("handover-badge");
+    const total = Object.keys(conversaciones).length;
+
+    badge.textContent = total;
+    badge.style.display = total > 0 ? "inline" : "none";
+
+    if (total === 0) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">✅</div><p>Todo atendido.</p></div>`;
+      return;
+    }
+
+    el.innerHTML = Object.values(conversaciones)
+      .sort((a, b) => b.lastSeen - a.lastSeen)
+      .map(c => `
+        <div class="conv-item ${c.telefono === telefonoActivo ? "active" : ""}" onclick="abrirConv('${escAttr(c.telefono)}')">
+          <div class="phone"><span>📱 +${escHtml(c.telefono)}</span><span class="new-dot"></span></div>
+          <div class="preview">${escHtml(c.ultimoMensaje || "(sin mensajes)")}</div>
+          <div class="meta"><span>⏱ ${formatTiempo(c.lastSeen)}</span><span>💬 ${c.turns || 0} turnos</span></div>
+        </div>`).join("");
+  }
+
+  function abrirConv(telefono) {
+    telefonoActivo = telefono;
+    renderConvList();
+    document.getElementById("chat-placeholder").style.display = "none";
+    document.getElementById("chat-header").classList.add("visible");
+    document.getElementById("reply-bar").classList.add("visible");
+    document.getElementById("chat-phone").textContent = `+${telefono}`;
+    renderMessages(telefono);
+    document.getElementById("reply-input").focus();
+  }
+
+  function cerrarChat() {
+    telefonoActivo = null;
+    document.getElementById("chat-placeholder").style.display = "flex";
+    document.getElementById("chat-header").classList.remove("visible");
+    document.getElementById("reply-bar").classList.remove("visible");
+    document.getElementById("messages-container").innerHTML = "";
+  }
+
+  function renderMessages(telefono) {
+    const conv = conversaciones[telefono];
+    if (!conv) return;
+    const container = document.getElementById("messages-container");
+    const msgs = conv.history || [];
+
+    if (msgs.length === 0) {
+      container.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:13px;margin-top:40px">Sin historial disponible</div>`;
+      return;
+    }
+
+    container.innerHTML = msgs.map(msg => {
+      const texto = msg.parts?.[0]?.text || "";
+      const esAdmin = texto.startsWith("[Admin]:");
+      const role = esAdmin ? "admin" : msg.role;
+      const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Pucarito";
+      const textoLimpio = esAdmin ? texto.replace("[Admin]: ", "") : texto;
+      return `<div class="msg ${escAttr(role)}"><div class="msg-label">${label}</div><div class="msg-bubble">${escHtml(textoLimpio)}</div></div>`;
+    }).join("");
+
+    container.scrollTop = container.scrollHeight;
+  }
+
+  /* ── ACCIONES ──────────────────────────── */
+  async function enviarRespuesta() {
+    if (!telefonoActivo) return;
+    const input = document.getElementById("reply-input");
+    const mensaje = input.value.trim();
+    if (!mensaje) return;
+
+    const btn = document.querySelector(".reply-bar .btn-primary");
+    btn.disabled = true;
+    btn.textContent = "Enviando...";
+
+    const res = await apiFetch("/api/responder", {
+      method: "POST",
+      body: JSON.stringify({ telefono: telefonoActivo, mensaje }),
+    });
+
+    btn.disabled = false;
+    btn.textContent = "Enviar ↑";
+
+    if (res?.ok) { input.value = ""; toast("✅ Enviado", "success"); }
+    else toast("❌ Error enviando", "error");
+  }
+
+  async function reactivarBot() {
+    if (!telefonoActivo) return;
+    const btn = document.getElementById("btn-reactivar");
+    btn.disabled = true;
+    btn.textContent = "Reactivando...";
+
+    const res = await apiFetch("/api/reactivar", {
+      method: "POST",
+      body: JSON.stringify({ telefono: telefonoActivo }),
+    });
+
+    btn.disabled = false;
+    btn.textContent = "🤖 Reactivar bot";
+    if (!res?.ok) toast("❌ Error reactivando", "error");
+  }
+
+  function handleKey(e) {
+    if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); enviarRespuesta(); }
+  }
+
+  /* ── UTILS ──────────────────────────────── */
+  // Escapado HTML para prevenir XSS al mostrar mensajes de usuarios
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;");
+  }
+
+  function escAttr(str) {
+    return String(str).replace(/[^a-zA-Z0-9+\-_]/g, "");
+  }
+
+  function formatTiempo(ts) {
+    if (!ts) return "";
+    const min = Math.floor((Date.now() - ts) / 60000);
+    if (min < 1) return "ahora";
+    if (min < 60) return `hace ${min}m`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `hace ${h}h`;
+    return `hace ${Math.floor(h / 24)}d`;
+  }
+
+  function toast(msg, tipo = "") {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className = `show ${tipo}`;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove("show"), 3000);
+  }
+
+  function notificarNavegador(msg) {
+    if (Notification.permission === "granted") {
+      new Notification("Pucará Admin", { body: msg });
+    } else if (Notification.permission !== "denied") {
+      Notification.requestPermission().then(p => {
+        if (p === "granted") new Notification("Pucará Admin", { body: msg });
+      });
+    }
+  }
+
+  // Refresco cada 30s como red de seguridad
+  setInterval(() => { if (isLoggedIn) cargarConversaciones(); }, 30000);
+</script>
 </body>
 </html>
