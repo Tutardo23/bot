@@ -8,7 +8,7 @@ import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs"; // 🔥 Agregamos fs para leer el archivo a la fuerza
 import { handleTestMessage } from "./bot.js";
-import { getSession, updateSession, listHandovers } from "./memory.js";
+import { getSession, updateSession, listHandovers, listActivas } from "./memory.js";
 import { Redis } from "@upstash/redis";
 
 dotenv.config();
@@ -128,6 +128,12 @@ app.post("/api/logout", authMiddleware, async (req, res) => {
 
 app.get("/api/conversaciones", authMiddleware, apiLimiter, async (req, res) => {
   const lista = await listHandovers();
+  res.json(lista);
+});
+
+// Conversaciones activas con el bot (no derivadas aún)
+app.get("/api/activas", authMiddleware, apiLimiter, async (req, res) => {
+  const lista = await listActivas();
   res.json(lista);
 });
 
