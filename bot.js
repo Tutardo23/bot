@@ -31,8 +31,14 @@ function limpiarAsteriscos(texto) {
 
 function limpiarHistorial(history) {
   return history.map(msg => ({
-    ...msg,
-    parts: msg.parts.map(part => ({ ...part, text: limpiarAsteriscos(part.text) }))
+    role: msg.role,
+    parts: msg.parts.map(part => {
+      // Solo pasamos a Gemini los campos que acepta su API
+      // ts, mediaKey, mimeType son solo para el panel — los sacamos acá
+      const partLimpia = { text: limpiarAsteriscos(part.text || "") };
+      if (part.inlineData) partLimpia.inlineData = part.inlineData;
+      return partLimpia;
+    })
   }));
 }
 
