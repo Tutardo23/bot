@@ -445,21 +445,41 @@
     const html = msgs.map(msg => {
       const parte = msg.parts?.[0] || {};
       const texto = parte.text || "";
-      const imagen = parte.image || null; // dataURL si es imagen
+      const mediaKey = parte.mediaKey || null;
+      const mimeType = parte.mimeType || "";
 
       const esAdmin = texto.startsWith("[Admin]:");
       const role = esAdmin ? "admin" : msg.role;
       const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Pucarito";
       const textoLimpio = esAdmin ? texto.replace("[Admin]: ", "") : texto;
 
-      // Contenido del bubble: imagen y/o texto
       let contenido = "";
-      if (imagen) {
-        contenido += `<img src="${imagen}" alt="Imagen enviada" style="max-width:100%;max-height:280px;border-radius:8px;display:block;margin-bottom:${textoLimpio ? '6px' : '0'}">`;
+
+      if (mediaKey && mimeType.startsWith("image/")) {
+        const url = `/api/media?key=${encodeURIComponent(mediaKey)}`;
+        contenido += `
+          <img src="${url}" alt="Imagen del padre"
+            style="max-width:220px;max-height:300px;border-radius:8px;display:block;cursor:pointer;margin-bottom:${textoLimpio ? '6px' : '0'}"
+            onclick="window.open('${url}','_blank')"
+            onerror="this.outerHTML='<span style=&quot;font-size:12px;color:var(--muted)&quot;>🖼️ Imagen expirada</span>'"
+          />`;
+      } else if (mediaKey && mimeType.startsWith("audio/")) {
+        const url = `/api/media?key=${encodeURIComponent(mediaKey)}`;
+        contenido += `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:${textoLimpio ? '6px' : '0'}">
+            <span>🎙️</span>
+            <audio controls style="height:32px;max-width:200px">
+              <source src="${url}" type="${mimeType}">
+            </audio>
+          </div>`;
       }
-      if (textoLimpio) {
+
+      // Texto (si no es un placeholder de media)
+      if (textoLimpio && !textoLimpio.startsWith("[🎙️") && !textoLimpio.startsWith("[🖼️")) {
         contenido += `<span>${esc(textoLimpio)}</span>`;
       }
+
+      if (!contenido) contenido = `<span>${esc(textoLimpio)}</span>`;
 
       return `<div class="msg ${role}">
         <div class="msg-lbl">${label}</div>
