@@ -15,6 +15,9 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+// Necesario para que express-rate-limit funcione detrás de un proxy (Railway, Render, etc.)
+app.set("trust proxy", 1);
 const io = new Server(httpServer, {
   cors: { origin: false }, // Sin CORS abierto — mismo origen
   cookie: true,
@@ -45,7 +48,11 @@ app.use((req, res, next) => {
 });
 
 app.use(cookieParser());
-app.use(express.json({ limit: "50kb" })); // Límite de payload para evitar DoS
+// Parseamos el body guardando también la versión raw (necesaria para verificar firma de Meta)
+app.use(express.json({
+  limit: "50kb",
+  verify: (req, res, buf) => { req.rawBody = buf; }
+}));
 app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
@@ -68,6 +75,9 @@ const redis = new Redis({
    SEGURIDAD — RATE LIMITING
 ───────────────────────────────────────────── */
 
+// keyGenerator común: usa X-Forwarded-For de forma segura (trust proxy ya está activo)
+const getIP = (req) => req.ip || req.socket?.remoteAddress || "unknown";
+
 // Login: máx 10 intentos cada 15 minutos por IP
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -75,6 +85,8 @@ const loginLimiter = rateLimit({
   message: { error: "Demasiados intentos. Esperá 15 minutos." },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getIP,
+  validate: false, // Desactiva las validaciones extra que causan el error
 });
 
 // API general del panel: 100 requests/minuto por IP
@@ -82,12 +94,16 @@ const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
   message: { error: "Demasiadas requests. Esperá un momento." },
+  keyGenerator: getIP,
+  validate: false,
 });
 
-// Webhook de WhatsApp: sin límite estricto pero con validación de firma
+// Webhook de WhatsApp
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 500, // Meta puede mandar muchos en ráfaga
+  max: 500,
+  keyGenerator: getIP,
+  validate: false,
 });
 
 /* ─────────────────────────────────────────────
@@ -108,10 +124,12 @@ function verificarFirmaMeta(req, res, next) {
     return res.sendStatus(403);
   }
 
-  const body = JSON.stringify(req.body);
+  // Usamos el body raw (bytes originales) — re-serializar con JSON.stringify
+  // puede cambiar el orden de las claves y romper la firma
+  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
   const expected = "sha256=" + crypto
     .createHmac("sha256", WHATSAPP_APP_SECRET)
-    .update(body)
+    .update(rawBody)
     .digest("hex");
 
   // Comparación timing-safe para evitar timing attacks
