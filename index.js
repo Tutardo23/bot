@@ -27,22 +27,22 @@ setIO(io);
    Agrega ~15 headers de seguridad de una vez:
    CSP, X-Frame-Options, HSTS, etc.
 ───────────────────────────────────────────── */
+// Helmet — headers de seguridad sin CSP custom (evita bug de versiones)
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"], // socket.io CDN
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'", "wss:"],
-      imgSrc: ["'self'", "data:"],
-      frameguard: { action: "deny" }, // Anti-clickjacking
-    },
-  },
-  hsts: {
-    maxAge: 31536000, // 1 año — fuerza HTTPS en navegadores
-    includeSubDomains: true,
-  },
+  contentSecurityPolicy: false,
+  frameguard: { action: "deny" },
+  hsts: { maxAge: 31536000 },
+  noSniff: true,
 }));
+
+// CSP manual para evitar conflictos con helmet
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: ws:; img-src 'self' data:; frame-ancestors 'none'"
+  );
+  next();
+});
 
 app.use(cookieParser());
 app.use(express.json({ limit: "50kb" })); // Límite de payload para evitar DoS
