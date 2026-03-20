@@ -1,360 +1,216 @@
 import express from "express";
-import { createServer } from "http";
-import { Server } from "socket.io";
 import axios from "axios";
 import dotenv from "dotenv";
-import crypto from "crypto";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
-import cookieParser from "cookie-parser";
-import { handleTestMessage, setIO } from "./bot.js";
-import { getSession, updateSession, listHandovers } from "./memory.js";
-import { Redis } from "@upstash/redis";
+import path from "path";
+import { handleTestMessage } from "./bot.js";
+import { getSession, updateSession } from "./memory.js";
 
 dotenv.config();
 
 const app = express();
-const httpServer = createServer(app);
-
-// Necesario para que express-rate-limit funcione detrás de un proxy (Railway, Render, etc.)
-app.set("trust proxy", 1);
-const io = new Server(httpServer, {
-  cors: { origin: false }, // Sin CORS abierto — mismo origen
-  cookie: true,
-});
-
-setIO(io);
-
-/* ─────────────────────────────────────────────
-   SEGURIDAD — HEADERS (helmet)
-   Agrega ~15 headers de seguridad de una vez:
-   CSP, X-Frame-Options, HSTS, etc.
-───────────────────────────────────────────── */
-// Helmet — headers de seguridad sin CSP custom (evita bug de versiones)
-app.use(helmet({
-  contentSecurityPolicy: false,
-  frameguard: { action: "deny" },
-  hsts: { maxAge: 31536000 },
-  noSniff: true,
-}));
-
-// CSP manual para evitar conflictos con helmet
-app.use((req, res, next) => {
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: ws:; img-src 'self' data:; frame-ancestors 'none'"
-  );
-  next();
-});
-
-app.use(cookieParser());
-// Parseamos el body guardando también la versión raw (necesaria para verificar firma de Meta)
-app.use(express.json({
-  limit: "50kb",
-  verify: (req, res, buf) => { req.rawBody = buf; }
-}));
-app.use(express.static("public"));
+app.use(express.json());
+app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
 const MY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const WHATSAPP_APP_SECRET = process.env.WHATSAPP_APP_SECRET; // ← NUEVO: App Secret de Meta
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 8) {
-  console.error("❌ ADMIN_PASSWORD no definida o menor a 8 caracteres. Agregala al .env");
-  process.exit(1);
-}
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
-
-/* ─────────────────────────────────────────────
-   SEGURIDAD — RATE LIMITING
-───────────────────────────────────────────── */
-
-// keyGenerator común: usa X-Forwarded-For de forma segura (trust proxy ya está activo)
-const getIP = (req) => req.ip || req.socket?.remoteAddress || "unknown";
-
-// Login: máx 10 intentos cada 15 minutos por IP
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: { error: "Demasiados intentos. Esperá 15 minutos." },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: getIP,
-  validate: false, // Desactiva las validaciones extra que causan el error
-});
-
-// API general del panel: 100 requests/minuto por IP
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 100,
-  message: { error: "Demasiadas requests. Esperá un momento." },
-  keyGenerator: getIP,
-  validate: false,
-});
-
-// Webhook de WhatsApp
-const webhookLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 500,
-  keyGenerator: getIP,
-  validate: false,
-});
-
-/* ─────────────────────────────────────────────
-   SEGURIDAD — VERIFICACIÓN DE FIRMA WHATSAPP
-   Meta firma cada request con HMAC-SHA256.
-   Si la firma no coincide, la request es falsa.
-───────────────────────────────────────────── */
-function verificarFirmaMeta(req, res, next) {
-  if (!WHATSAPP_APP_SECRET) {
-    // Si no configuraron el secret, pasamos (con warning)
-    console.warn("⚠️ WHATSAPP_APP_SECRET no configurado. Verificación de firma desactivada.");
-    return next();
-  }
-
-  const firma = req.headers["x-hub-signature-256"];
-  if (!firma) {
-    console.warn("⚠️ Request sin firma de Meta — rechazada");
-    return res.sendStatus(403);
-  }
-
-  // Usamos el body raw (bytes originales) — re-serializar con JSON.stringify
-  // puede cambiar el orden de las claves y romper la firma
-  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
-  const expected = "sha256=" + crypto
-    .createHmac("sha256", WHATSAPP_APP_SECRET)
-    .update(rawBody)
-    .digest("hex");
-
-  // Comparación timing-safe para evitar timing attacks
-  const sigBuf = Buffer.from(firma);
-  const expBuf = Buffer.from(expected);
-
-  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
-    console.warn("⚠️ Firma de Meta inválida — request rechazada");
-    return res.sendStatus(403);
-  }
-
-  next();
-}
-
-/* ─────────────────────────────────────────────
-   AUTH — COOKIE HttpOnly (más seguro que localStorage)
-   La cookie no es accesible desde JavaScript,
-   por lo que un XSS no puede robar el token.
-───────────────────────────────────────────── */
-const COOKIE_NAME = "pucarito_admin";
-const COOKIE_OPTIONS = {
-  httpOnly: true,       // JS no puede leerla
-  secure: process.env.NODE_ENV === "production", // Solo HTTPS en prod
-  sameSite: "strict",   // No se manda en requests cross-site (anti-CSRF)
-  maxAge: 8 * 60 * 60 * 1000, // 8 horas
-};
-
-async function authMiddleware(req, res, next) {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token) return res.status(401).json({ error: "No autorizado" });
-
-  const valid = await redis.get(`admin:token:${token}`);
-  if (!valid) return res.status(401).json({ error: "Sesión expirada. Volvé a ingresar." });
-
-  req.adminToken = token;
-  next();
-}
-
-/* ─────────────────────────────────────────────
-   RUTAS — AUTH
-───────────────────────────────────────────── */
-app.post("/api/login", loginLimiter, async (req, res) => {
-  const { password } = req.body;
-
-  if (!password || typeof password !== "string") {
-    return res.status(400).json({ error: "Contraseña requerida" });
-  }
-
-  // Comparación timing-safe para evitar timing attacks en la contraseña
-  const inputBuf = Buffer.from(password.padEnd(64));
-  const targetBuf = Buffer.from(ADMIN_PASSWORD.padEnd(64));
-  const match = crypto.timingSafeEqual(inputBuf, targetBuf) && password === ADMIN_PASSWORD;
-
-  if (!match) {
-    // Delay artificial para frenar ataques de fuerza bruta
-    await new Promise(r => setTimeout(r, 500));
-    return res.status(401).json({ error: "Contraseña incorrecta" });
-  }
-
-  const token = crypto.randomBytes(48).toString("hex"); // 96 chars — muy difícil de adivinar
-  await redis.set(`admin:token:${token}`, "1", { ex: 60 * 60 * 8 });
-
-  res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
-  res.json({ ok: true });
-});
-
-app.post("/api/logout", authMiddleware, async (req, res) => {
-  await redis.del(`admin:token:${req.adminToken}`);
-  res.clearCookie(COOKIE_NAME);
-  res.json({ ok: true });
-});
-
-/* ─────────────────────────────────────────────
-   RUTAS — PANEL ADMIN
-───────────────────────────────────────────── */
-app.get("/api/conversaciones", authMiddleware, apiLimiter, async (req, res) => {
-  const lista = await listHandovers();
-  res.json(lista);
-});
-
-app.post("/api/responder", authMiddleware, apiLimiter, async (req, res) => {
-  const { telefono, mensaje } = req.body;
-
-  if (!telefono || !mensaje || typeof mensaje !== "string") {
-    return res.status(400).json({ error: "Datos inválidos" });
-  }
-
-  // Sanitización básica: límite de longitud
-  if (mensaje.length > 4096) {
-    return res.status(400).json({ error: "Mensaje demasiado largo" });
-  }
-
-  await sendWhatsApp(telefono, mensaje);
-
-  const session = await getSession(telefono);
-  session.history = [...(session.history || []), {
-    role: "model",
-    parts: [{ text: `[Admin]: ${mensaje}` }]
-  }];
-  await updateSession(telefono, session);
-
-  io.emit("mensaje_enviado", { telefono, mensaje, ts: Date.now() });
-  res.json({ ok: true });
-});
-
-app.post("/api/reactivar", authMiddleware, apiLimiter, async (req, res) => {
-  const { telefono } = req.body;
-  if (!telefono) return res.status(400).json({ error: "Falta teléfono" });
-
-  const session = await getSession(telefono);
-  session.status = "ACTIVE";
-  session.greeted = true;
-  session.isReturningUser = true;
-  await updateSession(telefono, session);
-
-  await sendWhatsApp(telefono, "¡Hola de nuevo! 👋 Ya podés seguir escribiéndome. Soy Pucarito 🏫");
-  io.emit("bot_reactivado", { telefono });
-  res.json({ ok: true });
-});
-
-/* ─────────────────────────────────────────────
-   SIMULADOR LOCAL (solo en desarrollo)
-───────────────────────────────────────────── */
-if (process.env.NODE_ENV !== "production") {
-  app.post("/chat-local", async (req, res) => {
-    try {
-      const { message } = req.body;
-      const respuesta = await handleTestMessage({ from: "usuario_local", type: "text", text: { body: message } });
-      res.json({ reply: respuesta ?? "🤫 Bot en silencio (Modo Humano)." });
-    } catch (e) {
-      res.status(500).json({ reply: "❌ Error en el servidor." });
-    }
-  });
-}
-
-/* ─────────────────────────────────────────────
-   WEBHOOK WHATSAPP
-───────────────────────────────────────────── */
-app.get("/webhook", (req, res) => {
-  if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === MY_TOKEN) {
-    return res.status(200).send(req.query["hub.challenge"]);
-  }
-  res.sendStatus(403);
-});
-
-app.post("/webhook", webhookLimiter, verificarFirmaMeta, async (req, res) => {
-  res.sendStatus(200); // Respuesta rápida a Meta
-
-  const message = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-  if (!message) return;
-
-  const from = message.from;
-  const type = message.type;
-  let messageObj = { from, type };
-
-  if (type === "text") {
-    messageObj.text = message.text;
-  } else if (type === "image") {
-    messageObj.mediaData = await downloadMedia(message.image.id);
-    messageObj.text = { body: message.image.caption || "" };
-  } else if (type === "audio") {
-    messageObj.mediaData = await downloadMedia(message.audio.id);
-    messageObj.text = { body: "" };
-  } else {
-    await sendWhatsApp(from, "Por ahora solo puedo leer textos, imágenes y audios. 😊");
-    return;
-  }
-
-  const respuesta = await handleTestMessage(messageObj);
-  if (respuesta) {
-    const destino = from === "5493816559383" ? "54381156559383" : from;
-    await sendWhatsApp(destino, respuesta);
-  }
-});
-
-/* ─────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────── */
+/* =========================================
+   DESCARGADOR DE MEDIA (imágenes y audios)
+   WhatsApp envía un media_id → lo descargamos
+   de los servidores de Meta y lo convertimos
+   a base64 para enviárselo a Gemini.
+========================================= */
 async function downloadMedia(mediaId) {
   try {
-    const { data: info } = await axios.get(
+    // 1️⃣ Pedimos la URL real del archivo a Meta
+    const { data: mediaInfo } = await axios.get(
       `https://graph.facebook.com/v21.0/${mediaId}`,
       { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } }
     );
-    const { data: buffer } = await axios.get(info.url, {
+
+    // 2️⃣ Descargamos el archivo binario
+    const { data: mediaBuffer } = await axios.get(mediaInfo.url, {
       headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` },
-      responseType: "arraybuffer",
+      responseType: "arraybuffer"
     });
-    return { base64: Buffer.from(buffer).toString("base64"), mimeType: info.mime_type };
-  } catch (e) {
-    console.error("❌ Error descargando media:", e.message);
+
+    return {
+      base64: Buffer.from(mediaBuffer).toString("base64"),
+      mimeType: mediaInfo.mime_type  // ej: "image/jpeg", "audio/ogg; codecs=opus"
+    };
+
+  } catch (error) {
+    console.error("❌ Error descargando media:", error.message);
     return null;
   }
 }
 
-async function sendWhatsApp(to, text) {
+/* =========================================
+   RUTA DE SIMULACIÓN LOCAL
+========================================= */
+app.post("/chat-local", async (req, res) => {
   try {
-    await axios.post(
-      `https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`,
-      { messaging_product: "whatsapp", to, text: { body: text } },
-      { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" } }
-    );
-  } catch (e) {
-    console.error("❌ Error WhatsApp:", e.response?.data || e.message);
+    const { message } = req.body;
+    const userSimulatorId = "usuario_local_browser";
+
+    console.log(`💻 Local: ${message}`);
+
+    const fakeMessageObj = {
+      from: userSimulatorId,
+      type: "text",
+      text: { body: message }
+    };
+
+    const respuesta = await handleTestMessage(fakeMessageObj);
+
+    if (respuesta === null) {
+      return res.json({ reply: "🤫 El bot está en silencio (Modo Humano activado)." });
+    }
+
+    res.json({ reply: respuesta });
+
+  } catch (error) {
+    console.error("\n🔥 ERROR GRAVE:", error);
+    res.status(500).json({ reply: "❌ Error en el servidor. Revisá la terminal." });
+  }
+});
+
+/* =========================================
+   WEBHOOK DE CHATWOOT
+========================================= */
+app.post("/chatwoot-webhook", async (req, res) => {
+  try {
+    const data = req.body;
+
+    if (data.event === "message_created" && data.message_type === "outgoing") {
+      const numeroTelefono = data.conversation?.meta?.sender?.identifier;
+      const textoRespuesta = data.content?.trim();
+
+      if (!numeroTelefono || !textoRespuesta) return res.sendStatus(200);
+
+      if (textoRespuesta.toLowerCase() === "/bot") {
+        const session = await getSession(numeroTelefono);
+        session.status = "ACTIVE";
+        session.greeted = false;
+        session.history = [];
+        await updateSession(numeroTelefono, session);
+        console.log(`🤖 Bot reactivado para ${numeroTelefono}`);
+        return res.sendStatus(200);
+      }
+
+      console.log(`👨‍💼 Agente responde a ${numeroTelefono}: ${textoRespuesta}`);
+      await sendMessage(numeroTelefono, textoRespuesta);
+    }
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("❌ Error en webhook de Chatwoot:", error);
+    res.sendStatus(500);
+  }
+});
+
+/* =========================================
+   WEBHOOK DE WHATSAPP (Meta)
+========================================= */
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === MY_TOKEN) {
+    console.log("✅ Webhook verificado!");
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+app.post("/webhook", async (req, res) => {
+  const body = req.body;
+
+  if (!body.object) return res.sendStatus(404);
+
+  const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  if (!message) return res.sendStatus(200);
+
+  const from = message.from;
+  const type = message.type; // "text" | "image" | "audio"
+
+  console.log(`📩 Mensaje de ${from} — tipo: ${type}`);
+
+  let messageObj = { from, type };
+  let mediaData = null;
+
+  // ── TEXTO ──────────────────────────────
+  if (type === "text") {
+    messageObj.text = message.text;
+
+  // ── IMAGEN ─────────────────────────────
+  } else if (type === "image") {
+    const mediaId = message.image.id;
+    const caption = message.image.caption || "";
+    console.log(`🖼️ Imagen recibida (id: ${mediaId})`);
+
+    mediaData = await downloadMedia(mediaId);
+    messageObj.text = { body: caption || "[El usuario envió una imagen]" };
+    messageObj.mediaData = mediaData;
+
+  // ── AUDIO (notas de voz) ───────────────
+  } else if (type === "audio") {
+    const mediaId = message.audio.id;
+    console.log(`🎙️ Audio recibido (id: ${mediaId})`);
+
+    mediaData = await downloadMedia(mediaId);
+    messageObj.text = { body: "[El usuario envió un audio de voz]" };
+    messageObj.mediaData = mediaData;
+
+  // ── TIPO NO SOPORTADO ──────────────────
+  } else {
+    console.log(`⚠️ Tipo de mensaje no soportado: ${type}`);
+    await sendMessage(from, "Por el momento solo puedo leer textos, imágenes y audios de voz. 😊");
+    return res.sendStatus(200);
+  }
+
+  const respuestaBot = await handleTestMessage(messageObj);
+
+  if (respuestaBot) {
+    let numeroDestino = from;
+    // Fix de número conocido
+    if (from === "5493816559383") numeroDestino = "54381156559383";
+    await sendMessage(numeroDestino, respuestaBot);
+  }
+
+  res.sendStatus(200);
+});
+
+/* =========================================
+   ENVÍO DE MENSAJES A WHATSAPP
+========================================= */
+async function sendMessage(to, text) {
+  try {
+    await axios({
+      method: "POST",
+      url: `https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`,
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        messaging_product: "whatsapp",
+        to,
+        text: { body: text },
+      },
+    });
+    console.log(`🤖 Respuesta enviada: ${text.substring(0, 40)}...`);
+  } catch (error) {
+    console.error("❌ Error enviando a WhatsApp:", error.response?.data || error.message);
   }
 }
 
-/* ─────────────────────────────────────────────
-   MANEJO DE ERRORES NO CAPTURADOS
-   Evita que el servidor crashee por errores inesperados
-───────────────────────────────────────────── */
-process.on("unhandledRejection", (reason) => {
-  console.error("❌ Unhandled rejection:", reason);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught exception:", err);
-});
-
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Servidor listo → http://localhost:${PORT}`);
-  console.log(`🔐 Panel admin  → http://localhost:${PORT}/admin.html`);
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`⚠️  Modo desarrollo — /chat-local habilitado`);
-  }
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor listo en puerto ${PORT}`);
+  console.log(`👉 Simulador: http://localhost:${PORT}/chat.html`);
 });
 
 export default app;
