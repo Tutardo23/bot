@@ -9,11 +9,6 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const HANDOVER_RESET_MINUTES = 120;
 
-// Socket.io se inyecta desde index.js para emitir eventos al panel
-let _io = null;
-export function setIO(io) { _io = io; }
-function emitir(evento, data) { if (_io) _io.emit(evento, data); }
-
 /* ─────────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────────── */
@@ -26,26 +21,28 @@ function getContexto() {
 }
 
 function limpiarAsteriscos(texto) {
+  if (!texto) return "";
   return texto.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
 }
 
+// Solo pasa a Gemini los campos que acepta: text e inlineData
+// ts, mediaKey, mimeType, image son campos nuestros — los sacamos acá
 function limpiarHistorial(history) {
   return history.map(msg => ({
     role: msg.role,
     parts: msg.parts.map(part => {
-      // Solo pasamos a Gemini los campos que acepta su API
-      // ts, mediaKey, mimeType son solo para el panel — los sacamos acá
-      const partLimpia = { text: limpiarAsteriscos(part.text || "") };
-      if (part.inlineData) partLimpia.inlineData = part.inlineData;
-      return partLimpia;
+      const limpia = { text: limpiarAsteriscos(part.text || "") };
+      if (part.inlineData) limpia.inlineData = part.inlineData;
+      // Gemini no acepta parts completamente vacíos
+      if (!limpia.text && !limpia.inlineData) limpia.text = " ";
+      return limpia;
     })
   }));
 }
 
-// Arma el array de partes para Gemini (texto + imagen/audio si existe)
+// Arma las partes del mensaje actual para Gemini (texto + media si existe)
 function buildParts(text, mediaData) {
   if (!mediaData) return [{ text: text || "" }];
-
   const mime = mediaData.mimeType.split(";")[0].trim();
   return [
     { text: mime.startsWith("audio/") ? "El usuario envió este audio:" : "El usuario envió esta imagen:" },
@@ -64,36 +61,32 @@ export async function handleTestMessage(message) {
 
   let session = await getSession(from);
 
-  // ── HANDOVER activo ───────────────────────
+  // ── HANDOVER activo: bot en silencio ──────
   if (session.status === "HANDOVER") {
     const minutos = (Date.now() - session.lastSeen) / 1000 / 60;
 
     if (minutos >= HANDOVER_RESET_MINUTES) {
-      // Pasó el tiempo → bot retoma solo
       console.log(`🔄 Reactivando bot para ${from} (${Math.round(minutos)} min inactivo).`);
       session = { status: "ACTIVE", greeted: false, lastIntent: null, history: [], tempData: {}, turns: 0, lastSeen: Date.now(), isReturningUser: true };
     } else {
-      // Bot en silencio → guardamos el mensaje del padre y avisamos al panel
-      // Guardamos texto, o imagen como dataURL para mostrarla en el panel
+      // Guardamos el mensaje en el historial para que el admin lo vea
+      // FIX: usamos saveMedia en vez de guardar base64 crudo en Redis
       let parteGuardada;
-      if (mediaData && message.type === "image") {
+      if (mediaData) {
+        const mediaKey = await saveMedia(from, mediaData.mimeType, mediaData.base64);
         const mime = mediaData.mimeType.split(";")[0].trim();
-        parteGuardada = { 
-          text: text || "", 
-          image: `data:${mime};base64,${mediaData.base64}` 
+        parteGuardada = {
+          text: text || "",
+          mediaKey,
+          mimeType: mime,
+          ts: Date.now()
         };
-      } else if (mediaData && message.type === "audio") {
-        parteGuardada = { text: `🎙️ Audio${text ? ": " + text : ""}` };
       } else {
-        parteGuardada = { text };
+        parteGuardada = { text, ts: Date.now() };
       }
+
       session.history = [...(session.history || []), { role: "user", parts: [parteGuardada] }];
       await updateSession(from, session);
-
-      emitir("nuevo_mensaje_handover", {
-        telefono: from,
-        mensaje: { text: textoGuardado, ts: Date.now() }
-      });
       return null;
     }
   }
@@ -108,7 +101,6 @@ export async function handleTestMessage(message) {
     weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "numeric",
   });
 
-  // Cargar perfil del contacto para personalizar la respuesta
   const contacto = await getContacto(from);
   const nombrePadre = contacto.nombre || null;
   const hijos = contacto.hijos?.length > 0 ? contacto.hijos.join(", ") : null;
@@ -136,8 +128,8 @@ REGLAS DE COMPORTAMIENTO:
    Solo incluí los campos que mencionó. Si solo dijo su nombre: |||CONTACTO:{"nombre":"Juan Pérez"}|||
    Si solo mencionó un hijo: |||CONTACTO:{"hijos":["Sofía"]}|||
    Si no hay datos nuevos de contacto en este mensaje: no incluyas el bloque |||CONTACTO|||
-5. Audio: transcribilo y respondé como si fuera texto.
-6. Imagen: analizala y respondé en contexto.
+6. Audio: transcribilo y respondé como si fuera texto.
+7. Imagen: analizala y respondé en contexto.
 
 REGLA CRÍTICA — CUÁNDO DERIVAR A HUMANO (ACTION_HANDOVER):
 Derivás ÚNICAMENTE en estos casos, y SOLO cuando se cumplen TODAS las condiciones:
@@ -197,58 +189,32 @@ HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la p
     const result = await chat.sendMessage(buildParts(text, mediaData));
     let botResponse = result.response.text().trim();
 
-    // ── Extraer y guardar datos de contacto si Gemini los detectó ──
-    const contactoMatch = botResponse.match(/\|\|\|CONTACTO:({.*?})\|\|\|/s);
+    // ── Extraer y guardar datos de contacto ──
+    const contactoMatch = botResponse.match(/\|\|\|CONTACTO:(\{.*?\})\|\|\|/s);
     if (contactoMatch) {
       try {
         const datosContacto = JSON.parse(contactoMatch[1]);
         await updateContacto(from, datosContacto);
         console.log(`👤 Contacto actualizado para ${from}:`, datosContacto);
       } catch {}
-      // Limpiar el bloque del mensaje antes de enviarlo al padre
       botResponse = botResponse.replace(/\|\|\|CONTACTO:.*?\|\|\|/s, "").trim();
     }
 
     // ── HANDOVER detectado ─────────────────
     if (botResponse.includes("ACTION_HANDOVER")) {
-      // Guardamos el mensaje del padre que disparó el handover
-      // (sin esto el historial queda vacío en el panel)
-      // Guardamos el mensaje actual con imagen si la hay
-      let parteMensajeActual;
-      if (mediaData && message.type === "image") {
-        const mime = mediaData.mimeType.split(";")[0].trim();
-        parteMensajeActual = { 
-          text: text || "", 
-          image: `data:${mime};base64,${mediaData.base64}` 
-        };
-      } else {
-        parteMensajeActual = { text: text || "[media]" };
-      }
       const historialConMensajeActual = [
         ...(session.history || []),
-        { role: "user", parts: [parteMensajeActual] }
+        { role: "user", parts: [{ text: text || "[media]", ts: Date.now() }] }
       ];
-
       session.status = "HANDOVER";
       session.history = historialConMensajeActual;
       await updateSession(from, session);
-
-      // Notificamos al panel con el historial completo
-      emitir("nuevo_handover", {
-        telefono: from,
-        lastSeen: Date.now(),
-        turns: session.turns,
-        history: historialConMensajeActual,
-        ultimoMensaje: text.substring(0, 80),
-      });
-
       return "📞 ¡Listo! Tus datos fueron enviados al equipo. En breve alguien te responde por acá. 😊";
     }
 
     session.greeted = true;
 
-    // Guardamos historial limpio (máx. 14 turnos)
-    // Si había media en este turno, la guardamos en Redis y referenciamos la key
+    // Guardamos historial (máx. 14 turnos) con mediaKey si corresponde
     let mediaKey = null;
     if (mediaData) {
       mediaKey = await saveMedia(from, mediaData.mimeType, mediaData.base64);
@@ -258,19 +224,13 @@ HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la p
     session.history = rawHistory
       .map((msg, idx) => {
         const textoBase = limpiarAsteriscos(
-          msg.parts.map(p => p.text || (p.inlineData ? "" : "")).filter(Boolean).join(" ")
+          msg.parts.map(p => p.text || "").filter(Boolean).join(" ")
         );
-        // El último mensaje del user puede tener media
         const esUltimoUser = msg.role === "user" && idx === rawHistory.length - 2;
         if (esUltimoUser && mediaKey) {
           return {
             role: msg.role,
-            parts: [{
-              text: textoBase,
-              mediaKey,
-              mimeType: mediaData.mimeType.split(";")[0].trim(),
-              ts: Date.now()
-            }]
+            parts: [{ text: textoBase, mediaKey, mimeType: mediaData.mimeType.split(";")[0].trim(), ts: Date.now() }]
           };
         }
         return { role: msg.role, parts: [{ text: textoBase, ts: Date.now() }] };
