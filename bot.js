@@ -182,7 +182,7 @@ HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la p
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash-lite",
       systemInstruction: { role: "system", parts: [{ text: prompt }] },
       generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
     });
