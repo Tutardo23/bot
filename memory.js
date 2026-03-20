@@ -44,11 +44,18 @@ export async function updateSession(user, data) {
     const updatedSession = { ...data, lastSeen: Date.now(), turns: (data.turns || 0) + 1 };
     await redis.set(user, JSON.stringify(updatedSession), { ex: SESSION_TIMEOUT_SEC });
 
-    // Mantenemos el SET de handovers sincronizado
+    // SET de handovers
     if (data.status === "HANDOVER") {
       await redis.sadd("handovers_activos", user);
+      await redis.srem("sesiones_activas", user);
     } else {
       await redis.srem("handovers_activos", user);
+      // Solo trackeamos si greeted (ya pasó el saludo inicial)
+      if (data.greeted) {
+        await redis.sadd("sesiones_activas", user);
+        // TTL de 4hs en el SET entry también
+        await redis.expire("sesiones_activas", SESSION_TIMEOUT_SEC);
+      }
     }
   } catch (error) {
     console.error("❌ Error guardando sesión:", error);
@@ -97,6 +104,53 @@ export async function listHandovers() {
 
   } catch (error) {
     console.error("❌ Error listando handovers:", error);
+    return [];
+  }
+}
+
+/* ─────────────────────────────────────────────
+   LISTAR CONVERSACIONES ACTIVAS (con el bot)
+───────────────────────────────────────────── */
+export async function listActivas() {
+  try {
+    const telefonos = await redis.smembers("sesiones_activas");
+    if (!telefonos || telefonos.length === 0) return [];
+
+    const conversaciones = await Promise.all(
+      telefonos.map(async (tel) => {
+        const session = await redis.get(tel);
+        if (!session) {
+          await redis.srem("sesiones_activas", tel);
+          return null;
+        }
+        const parsed = typeof session === 'string' ? JSON.parse(session) : session;
+
+        // Si expiró o pasó a HANDOVER, la sacamos del SET
+        const minutosInactivo = (Date.now() - parsed.lastSeen) / 1000 / 60;
+        if (minutosInactivo > SESSION_TIMEOUT_SEC / 60 || parsed.status === "HANDOVER") {
+          await redis.srem("sesiones_activas", tel);
+          return null;
+        }
+
+        const ultimoMensaje = parsed.history
+          ?.slice(-1)[0]?.parts?.[0]?.text || "(sin mensajes)";
+
+        return {
+          telefono: tel,
+          lastSeen: parsed.lastSeen,
+          turns: parsed.turns || 0,
+          history: parsed.history || [],
+          ultimoMensaje: ultimoMensaje.substring(0, 80),
+        };
+      })
+    );
+
+    return conversaciones
+      .filter(Boolean)
+      .sort((a, b) => b.lastSeen - a.lastSeen);
+
+  } catch (error) {
+    console.error("❌ Error listando activas:", error);
     return [];
   }
 }
