@@ -7,7 +7,6 @@
     }
   ],
   "routes": [
-    { "handle": "filesystem" },
     {
       "src": "/(.*)",
       "dest": "/index.js"

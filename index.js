@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "path";
+import fs from "fs"; // 🔥 Agregamos fs para leer el archivo a la fuerza
 import { handleTestMessage } from "./bot.js";
 import { getSession, updateSession, listHandovers } from "./memory.js";
 import { Redis } from "@upstash/redis";
@@ -14,10 +15,8 @@ dotenv.config();
 
 const app = express();
 
-// Necesario para Railway/Render/Vercel (proxy delante del servidor)
 app.set("trust proxy", 1);
 
-// ── Seguridad: headers HTTP ──────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use((req, res, next) => {
   res.setHeader(
@@ -27,7 +26,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Rate limiting ────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -44,9 +42,25 @@ const apiLimiter = rateLimit({
 app.use(cookieParser());
 app.use(express.json());
 
-// 🔥 ESTA LÍNEA HACE LA MAGIA AHORA 🔥
-// Le dice a tu servidor que muestre directamente lo que hay en la carpeta "public"
-app.use(express.static("public")); 
+// 🔥 EL LECTOR ANTIBALAS DE ADMIN.HTML 🔥
+app.get("/admin.html", (req, res) => {
+  try {
+    // Plan A: Lo busca en la carpeta "public"
+    const htmlPath = path.join(process.cwd(), "public", "admin.html");
+    const html = fs.readFileSync(htmlPath, "utf-8");
+    res.send(html);
+  } catch (error) {
+    try {
+      // Plan B: Lo busca suelto en la carpeta principal
+      const fallbackPath = path.join(process.cwd(), "admin.html");
+      const html = fs.readFileSync(fallbackPath, "utf-8");
+      res.send(html);
+    } catch (error2) {
+      // Si falla todo, te muestra el error real en pantalla
+      res.status(404).send(`❌ Vercel no encuentra el archivo. Detalles: ${error.message} | ${error2.message}`);
+    }
+  }
+});
 
 const MY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
@@ -57,9 +71,6 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN,
 });
 
-/* =========================================
-   DESCARGADOR DE MEDIA
-========================================= */
 async function downloadMedia(mediaId) {
   try {
     const { data: mediaInfo } = await axios.get(
@@ -80,9 +91,6 @@ async function downloadMedia(mediaId) {
   }
 }
 
-/* =========================================
-   AUTH
-========================================= */
 const COOKIE = "pucarito_admin";
 
 async function authMiddleware(req, res, next) {
@@ -94,9 +102,6 @@ async function authMiddleware(req, res, next) {
   next();
 }
 
-/* =========================================
-   RUTAS ADMIN — AUTH
-========================================= */
 app.post("/api/login", loginLimiter, async (req, res) => {
   const { password } = req.body;
   if (!password || password !== ADMIN_PASSWORD) {
@@ -108,7 +113,7 @@ app.post("/api/login", loginLimiter, async (req, res) => {
   res.cookie(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: isProd,  // true en Vercel (HTTPS), false en localhost (HTTP)
+    secure: isProd,
     maxAge: 8 * 60 * 60 * 1000,
     path: "/",
   });
@@ -121,10 +126,6 @@ app.post("/api/logout", authMiddleware, async (req, res) => {
   res.json({ ok: true });
 });
 
-/* =========================================
-   RUTAS ADMIN — PANEL
-   (polling cada 3s desde el admin.html)
-========================================= */
 app.get("/api/conversaciones", authMiddleware, apiLimiter, async (req, res) => {
   const lista = await listHandovers();
   res.json(lista);
@@ -162,9 +163,6 @@ app.post("/api/reactivar", authMiddleware, apiLimiter, async (req, res) => {
   res.json({ ok: true });
 });
 
-/* =========================================
-   SIMULADOR LOCAL
-========================================= */
 app.post("/chat-local", async (req, res) => {
   try {
     const { message } = req.body;
@@ -180,9 +178,6 @@ app.post("/chat-local", async (req, res) => {
   }
 });
 
-/* =========================================
-   WEBHOOK WHATSAPP
-========================================= */
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -229,9 +224,6 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
-/* =========================================
-   ENVÍO A WHATSAPP
-========================================= */
 async function sendMessage(to, text) {
   try {
     await axios({
@@ -254,8 +246,6 @@ async function sendMessage(to, text) {
 process.on("unhandledRejection", (reason) => console.error("❌ Unhandled:", reason));
 process.on("uncaughtException", (err) => console.error("❌ Uncaught:", err));
 
-// Para Vercel: exportamos el app SIN llamar a listen()
-// Para local: si no estamos en Vercel, iniciamos el servidor normal
 if (process.env.VERCEL !== "1") {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
