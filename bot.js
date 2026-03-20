@@ -140,7 +140,15 @@ HANDOVER: Cuando corresponda, respondé SOLO la palabra ACTION_HANDOVER sin ning
 
     // ── HANDOVER detectado ─────────────────
     if (botResponse.includes("ACTION_HANDOVER")) {
+      // Guardamos el mensaje del padre que disparó el handover
+      // (sin esto el historial queda vacío en el panel)
+      const historialConMensajeActual = [
+        ...(session.history || []),
+        { role: "user", parts: [{ text: text || "[media]" }] }
+      ];
+
       session.status = "HANDOVER";
+      session.history = historialConMensajeActual;
       await updateSession(from, session);
 
       // Notificamos al panel con el historial completo
@@ -148,7 +156,7 @@ HANDOVER: Cuando corresponda, respondé SOLO la palabra ACTION_HANDOVER sin ning
         telefono: from,
         lastSeen: Date.now(),
         turns: session.turns,
-        history: session.history || [],
+        history: historialConMensajeActual,
         ultimoMensaje: text.substring(0, 80),
       });
 

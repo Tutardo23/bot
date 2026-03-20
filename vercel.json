@@ -8,8 +8,12 @@
   ],
   "routes": [
     {
+      "src": "/admin.html",
+      "dest": "/public/admin.html"
+    },
+    {
       "src": "/(.*)",
-      "dest": "index.js"
+      "dest": "/index.js"
     }
   ]
 }
