@@ -60,6 +60,7 @@
     .conv-phone { font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
     .conv-preview { font-size:11px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .conv-meta { font-size:10px; color:var(--muted); margin-top:3px; }
+    .conv-sub { font-size:10px; color:var(--muted); margin-top:1px; }
     .ndot { width:7px; height:7px; border-radius:50%; }
     .ndot-red { background:var(--red); }
     .ndot-blue { background:var(--blue); }
@@ -195,6 +196,7 @@
       <div class="chat-hdr" id="chat-hdr">
         <div>
           <div class="chat-phone" id="chat-phone">+54 9 381...</div>
+          <div id="chat-sub" style="font-size:11px;color:var(--muted);margin-top:1px"></div>
           <div class="chat-status" id="chat-status">🟡 Esperando atención</div>
         </div>
         <div style="display:flex;gap:8px">
@@ -352,9 +354,10 @@
           <div class="conv-item handover ${tel === c.telefono && tipoActivo === 'handover' ? 'active handover' : ''}"
                onclick="abrirConv('${esc(c.telefono)}','handover')">
             <div class="conv-phone">
-              <span>📱 +${esc(c.telefono)}</span>
+              <span>📱 ${c.nombre ? esc(c.nombre) : '+' + esc(c.telefono)}</span>
               <span class="ndot ndot-red"></span>
             </div>
+            ${c.nombre ? `<div class="conv-sub">+${esc(c.telefono)}${c.hijos?.length ? ' · 👦 ' + esc(c.hijos.join(', ')) : ''}</div>` : ''}
             <div class="conv-preview">${esc(c.ultimoMensaje || "(sin mensajes)")}</div>
             <div class="conv-meta">⏱ ${tiempo(c.lastSeen)} · 💬 ${c.turns || 0} turnos</div>
           </div>`).join("");
@@ -371,9 +374,10 @@
           <div class="conv-item activa ${tel === c.telefono && tipoActivo === 'activa' ? 'active activa' : ''}"
                onclick="abrirConv('${esc(c.telefono)}','activa')">
             <div class="conv-phone">
-              <span>🤖 +${esc(c.telefono)}</span>
+              <span>🤖 ${c.nombre ? esc(c.nombre) : '+' + esc(c.telefono)}</span>
               <span class="ndot ndot-blue"></span>
             </div>
+            ${c.nombre ? `<div class="conv-sub">+${esc(c.telefono)}${c.hijos?.length ? ' · 👦 ' + esc(c.hijos.join(', ')) : ''}</div>` : ''}
             <div class="conv-preview">${esc(c.ultimoMensaje || "(sin mensajes)")}</div>
             <div class="conv-meta">⏱ ${tiempo(c.lastSeen)} · 💬 ${c.turns || 0} turnos</div>
           </div>`).join("");
@@ -390,7 +394,12 @@
     document.getElementById("placeholder").style.display = "none";
     document.getElementById("chat-hdr").classList.add("show");
 
-    document.getElementById("chat-phone").textContent = `+${telefono}`;
+    const convData = tipo === "handover" ? espera[telefono] : activas[telefono];
+    const displayName = convData?.nombre || `+${telefono}`;
+    const displaySub = convData?.nombre ? `+${telefono}${convData.hijos?.length ? ' · 👦 ' + convData.hijos.join(', ') : ''}` : '';
+    document.getElementById("chat-phone").textContent = displayName;
+    const subEl = document.getElementById("chat-sub");
+    if (subEl) subEl.textContent = displaySub;
 
     const statusEl = document.getElementById("chat-status");
     const btnReact = document.getElementById("btn-react");
@@ -434,12 +443,28 @@
     }
 
     const html = msgs.map(msg => {
-      const texto = msg.parts?.[0]?.text || "";
+      const parte = msg.parts?.[0] || {};
+      const texto = parte.text || "";
+      const imagen = parte.image || null; // dataURL si es imagen
+
       const esAdmin = texto.startsWith("[Admin]:");
       const role = esAdmin ? "admin" : msg.role;
       const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Pucarito";
       const textoLimpio = esAdmin ? texto.replace("[Admin]: ", "") : texto;
-      return `<div class="msg ${role}"><div class="msg-lbl">${label}</div><div class="bubble">${esc(textoLimpio)}</div></div>`;
+
+      // Contenido del bubble: imagen y/o texto
+      let contenido = "";
+      if (imagen) {
+        contenido += `<img src="${imagen}" alt="Imagen enviada" style="max-width:100%;max-height:280px;border-radius:8px;display:block;margin-bottom:${textoLimpio ? '6px' : '0'}">`;
+      }
+      if (textoLimpio) {
+        contenido += `<span>${esc(textoLimpio)}</span>`;
+      }
+
+      return `<div class="msg ${role}">
+        <div class="msg-lbl">${label}</div>
+        <div class="bubble">${contenido}</div>
+      </div>`;
     }).join("");
 
     if (container.innerHTML !== html) {

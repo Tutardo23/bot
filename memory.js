@@ -154,3 +154,89 @@ export async function listActivas() {
     return [];
   }
 }
+
+/* ─────────────────────────────────────────────
+   CONTACTOS — Perfil permanente por número
+   Nunca expira. Sobrevive resets de sesión.
+───────────────────────────────────────────── */
+
+// Obtener contacto (crea uno vacío si no existe)
+export async function getContacto(telefono) {
+  try {
+    const data = await redis.get(`contacto:${telefono}`);
+    if (data) return typeof data === 'string' ? JSON.parse(data) : data;
+  } catch {}
+  return { nombre: null, hijos: [], lastSeen: null };
+}
+
+// Guardar/actualizar contacto
+export async function updateContacto(telefono, datos) {
+  try {
+    const actual = await getContacto(telefono);
+    const nuevo = {
+      ...actual,
+      ...datos,
+      // Merge de hijos: no duplicar nombres
+      hijos: datos.hijos
+        ? [...new Set([...(actual.hijos || []), ...datos.hijos])]
+        : actual.hijos || [],
+      lastSeen: Date.now(),
+    };
+    // Sin TTL — permanente
+    await redis.set(`contacto:${telefono}`, JSON.stringify(nuevo));
+    return nuevo;
+  } catch (error) {
+    console.error("❌ Error guardando contacto:", error);
+    return null;
+  }
+}
+
+// Listar todos los contactos conocidos
+export async function listContactos() {
+  try {
+    const keys = await redis.keys("contacto:*");
+    if (!keys || keys.length === 0) return [];
+
+    const contactos = await Promise.all(
+      keys.map(async (key) => {
+        const data = await redis.get(key);
+        if (!data) return null;
+        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        const telefono = key.replace("contacto:", "");
+        return { telefono, ...parsed };
+      })
+    );
+
+    return contactos
+      .filter(Boolean)
+      .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  } catch (error) {
+    console.error("❌ Error listando contactos:", error);
+    return [];
+  }
+}
+
+/* ─────────────────────────────────────────────
+   MEDIA — Guardado temporal de imágenes/audios
+   TTL de 48hs — suficiente para que el admin lo vea
+───────────────────────────────────────────── */
+export async function saveMedia(telefono, mimeType, base64) {
+  try {
+    const key = `media:${telefono}:${Date.now()}`;
+    await redis.set(key, JSON.stringify({ mimeType, base64 }), { ex: 60 * 60 * 48 });
+    return key;
+  } catch (error) {
+    console.error("❌ Error guardando media:", error);
+    return null;
+  }
+}
+
+export async function getMedia(key) {
+  try {
+    const data = await redis.get(key);
+    if (!data) return null;
+    return typeof data === 'string' ? JSON.parse(data) : data;
+  } catch {
+    return null;
+  }
+}

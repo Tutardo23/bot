@@ -8,7 +8,7 @@ import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs"; // 🔥 Agregamos fs para leer el archivo a la fuerza
 import { handleTestMessage } from "./bot.js";
-import { getSession, updateSession, listHandovers, listActivas } from "./memory.js";
+import { getSession, updateSession, listHandovers, listActivas, getContacto, listContactos, getMedia } from "./memory.js";
 import { Redis } from "@upstash/redis";
 
 dotenv.config();
@@ -128,13 +128,44 @@ app.post("/api/logout", authMiddleware, async (req, res) => {
 
 app.get("/api/conversaciones", authMiddleware, apiLimiter, async (req, res) => {
   const lista = await listHandovers();
-  res.json(lista);
+  // Enriquecer con nombre del contacto si existe
+  const enriquecida = await Promise.all(lista.map(async (c) => {
+    const contacto = await getContacto(c.telefono);
+    return { ...c, nombre: contacto.nombre, hijos: contacto.hijos };
+  }));
+  res.json(enriquecida);
 });
 
 // Conversaciones activas con el bot (no derivadas aún)
 app.get("/api/activas", authMiddleware, apiLimiter, async (req, res) => {
   const lista = await listActivas();
+  const enriquecida = await Promise.all(lista.map(async (c) => {
+    const contacto = await getContacto(c.telefono);
+    return { ...c, nombre: contacto.nombre, hijos: contacto.hijos };
+  }));
+  res.json(enriquecida);
+});
+
+// Todos los contactos conocidos
+app.get("/api/contactos", authMiddleware, apiLimiter, async (req, res) => {
+  const lista = await listContactos();
   res.json(lista);
+});
+
+// Servir media (imágenes/audios) guardados en Redis
+app.get("/api/media/:key(*)", authMiddleware, async (req, res) => {
+  const key = req.params.key;
+  // Validar que la key tenga el formato correcto (evitar path traversal)
+  if (!/^media:[0-9]+:[0-9]+$/.test(key)) {
+    return res.status(400).json({ error: "Key inválida" });
+  }
+  const media = await getMedia(key);
+  if (!media) return res.status(404).json({ error: "Media no encontrada o expirada" });
+
+  const buffer = Buffer.from(media.base64, "base64");
+  res.setHeader("Content-Type", media.mimeType);
+  res.setHeader("Cache-Control", "private, max-age=86400");
+  res.send(buffer);
 });
 
 app.post("/api/responder", authMiddleware, apiLimiter, async (req, res) => {

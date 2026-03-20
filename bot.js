@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import { getSession, updateSession } from "./memory.js";
+import { getSession, updateSession, getContacto, updateContacto, saveMedia } from "./memory.js";
 
 dotenv.config();
 
@@ -68,8 +68,20 @@ export async function handleTestMessage(message) {
       session = { status: "ACTIVE", greeted: false, lastIntent: null, history: [], tempData: {}, turns: 0, lastSeen: Date.now(), isReturningUser: true };
     } else {
       // Bot en silencio → guardamos el mensaje del padre y avisamos al panel
-      const textoGuardado = mediaData ? `[${message.type === "audio" ? "🎙️ Audio" : "🖼️ Imagen"}] ${text}` : text;
-      session.history = [...(session.history || []), { role: "user", parts: [{ text: textoGuardado }] }];
+      // Guardamos texto, o imagen como dataURL para mostrarla en el panel
+      let parteGuardada;
+      if (mediaData && message.type === "image") {
+        const mime = mediaData.mimeType.split(";")[0].trim();
+        parteGuardada = { 
+          text: text || "", 
+          image: `data:${mime};base64,${mediaData.base64}` 
+        };
+      } else if (mediaData && message.type === "audio") {
+        parteGuardada = { text: `🎙️ Audio${text ? ": " + text : ""}` };
+      } else {
+        parteGuardada = { text };
+      }
+      session.history = [...(session.history || []), { role: "user", parts: [parteGuardada] }];
       await updateSession(from, session);
 
       emitir("nuevo_mensaje_handover", {
@@ -90,6 +102,11 @@ export async function handleTestMessage(message) {
     weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "numeric",
   });
 
+  // Cargar perfil del contacto para personalizar la respuesta
+  const contacto = await getContacto(from);
+  const nombrePadre = contacto.nombre || null;
+  const hijos = contacto.hijos?.length > 0 ? contacto.hijos.join(", ") : null;
+
   const prompt = `
 Sos "Pucarito", asistente virtual del Colegio Pucará. Ayudás a padres y tutores.
 
@@ -97,6 +114,8 @@ CONTEXTO:
 - Fecha/hora: ${fechaActual}
 - Primer mensaje: ${!session.greeted ? "NO — saludá, presentate y mostrá el menú" : "SÍ — ir directo al grano, sin saludar"}
 - Usuario recurrente: ${session.isReturningUser ? "SÍ — bienvenida breve" : "NO"}
+- Nombre del padre/tutor: ${nombrePadre ? nombrePadre : "desconocido — si lo menciona, guardalo mentalmente y usalo"}
+- Hijos conocidos: ${hijos ? hijos : "ninguno registrado aún"}
 
 BASE DE CONOCIMIENTO:
 ${getContexto()}
@@ -105,7 +124,12 @@ REGLAS DE COMPORTAMIENTO:
 1. Nunca uses asteriscos (*) para negritas.
 2. Párrafos cortos. Emojis moderados.
 3. Temas ajenos al colegio: decí que solo sabés de la institución.
-4. Si te dijeron el nombre del usuario, usalo.
+4. Si el padre te dice su nombre, usalo en la conversación.
+5. DETECCIÓN DE NOMBRES — Si en algún mensaje el padre menciona su nombre o el de su hijo/a, extraelo y respondé con este JSON al FINAL de tu respuesta (invisible para el usuario, después de tu mensaje normal):
+   |||CONTACTO:{"nombre":"Juan Pérez","hijos":["Sofía","Lucas"]}|||
+   Solo incluí los campos que mencionó. Si solo dijo su nombre: |||CONTACTO:{"nombre":"Juan Pérez"}|||
+   Si solo mencionó un hijo: |||CONTACTO:{"hijos":["Sofía"]}|||
+   Si no hay datos nuevos de contacto en este mensaje: no incluyas el bloque |||CONTACTO|||
 5. Audio: transcribilo y respondé como si fuera texto.
 6. Imagen: analizala y respondé en contexto.
 
@@ -165,15 +189,38 @@ HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la p
 
     const chat = model.startChat({ history: limpiarHistorial(session.history || []) });
     const result = await chat.sendMessage(buildParts(text, mediaData));
-    const botResponse = result.response.text().trim();
+    let botResponse = result.response.text().trim();
+
+    // ── Extraer y guardar datos de contacto si Gemini los detectó ──
+    const contactoMatch = botResponse.match(/\|\|\|CONTACTO:({.*?})\|\|\|/s);
+    if (contactoMatch) {
+      try {
+        const datosContacto = JSON.parse(contactoMatch[1]);
+        await updateContacto(from, datosContacto);
+        console.log(`👤 Contacto actualizado para ${from}:`, datosContacto);
+      } catch {}
+      // Limpiar el bloque del mensaje antes de enviarlo al padre
+      botResponse = botResponse.replace(/\|\|\|CONTACTO:.*?\|\|\|/s, "").trim();
+    }
 
     // ── HANDOVER detectado ─────────────────
     if (botResponse.includes("ACTION_HANDOVER")) {
       // Guardamos el mensaje del padre que disparó el handover
       // (sin esto el historial queda vacío en el panel)
+      // Guardamos el mensaje actual con imagen si la hay
+      let parteMensajeActual;
+      if (mediaData && message.type === "image") {
+        const mime = mediaData.mimeType.split(";")[0].trim();
+        parteMensajeActual = { 
+          text: text || "", 
+          image: `data:${mime};base64,${mediaData.base64}` 
+        };
+      } else {
+        parteMensajeActual = { text: text || "[media]" };
+      }
       const historialConMensajeActual = [
         ...(session.history || []),
-        { role: "user", parts: [{ text: text || "[media]" }] }
+        { role: "user", parts: [parteMensajeActual] }
       ];
 
       session.status = "HANDOVER";
@@ -194,17 +241,33 @@ HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la p
 
     session.greeted = true;
 
-    // Guardamos historial limpio (máx. 14 turnos, sin asteriscos, sin base64)
+    // Guardamos historial limpio (máx. 14 turnos)
+    // Si había media en este turno, la guardamos en Redis y referenciamos la key
+    let mediaKey = null;
+    if (mediaData) {
+      mediaKey = await saveMedia(from, mediaData.mimeType, mediaData.base64);
+    }
+
     const rawHistory = await chat.getHistory();
     session.history = rawHistory
-      .map(msg => ({
-        role: msg.role,
-        parts: [{
-          text: limpiarAsteriscos(
-            msg.parts.map(p => p.text || (p.inlineData ? "[media]" : "")).filter(Boolean).join(" ")
-          )
-        }]
-      }))
+      .map((msg, idx) => {
+        const textoBase = limpiarAsteriscos(
+          msg.parts.map(p => p.text || (p.inlineData ? "" : "")).filter(Boolean).join(" ")
+        );
+        // El último mensaje del user puede tener media
+        const esUltimoUser = msg.role === "user" && idx === rawHistory.length - 2;
+        if (esUltimoUser && mediaKey) {
+          return {
+            role: msg.role,
+            parts: [{
+              text: textoBase,
+              mediaKey,
+              mimeType: mediaData.mimeType.split(";")[0].trim()
+            }]
+          };
+        }
+        return { role: msg.role, parts: [{ text: textoBase }] };
+      })
       .slice(-14);
 
     await updateSession(from, session);
