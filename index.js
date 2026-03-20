@@ -180,9 +180,23 @@ app.post("/api/responder", authMiddleware, apiLimiter, async (req, res) => {
   const session = await getSession(telefono);
   session.history = [...(session.history || []), {
     role: "model",
-    parts: [{ text: `[Admin]: ${mensaje}` }]
+    parts: [{ text: `[Admin]: ${mensaje}`, ts: Date.now() }]
   }];
   await updateSession(telefono, session);
+  res.json({ ok: true });
+});
+
+// Borrar historial de una conversación (sin borrar el contacto)
+app.post("/api/borrar", authMiddleware, apiLimiter, async (req, res) => {
+  const { telefono } = req.body;
+  if (!telefono) return res.status(400).json({ error: "Falta teléfono" });
+
+  const session = await getSession(telefono);
+  session.history = [];
+  session.status = "ACTIVE";
+  session.greeted = false;
+  await updateSession(telefono, session);
+
   res.json({ ok: true });
 });
 

@@ -262,11 +262,12 @@ HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la p
             parts: [{
               text: textoBase,
               mediaKey,
-              mimeType: mediaData.mimeType.split(";")[0].trim()
+              mimeType: mediaData.mimeType.split(";")[0].trim(),
+              ts: Date.now()
             }]
           };
         }
-        return { role: msg.role, parts: [{ text: textoBase }] };
+        return { role: msg.role, parts: [{ text: textoBase, ts: Date.now() }] };
       })
       .slice(-14);
 

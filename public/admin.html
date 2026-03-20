@@ -89,7 +89,8 @@
     .msg.user .bubble { background:var(--bubble-user); border-bottom-left-radius:4px; }
     .msg.model .bubble { background:var(--bubble-bot); border:1px solid var(--border); border-bottom-right-radius:4px; }
     .msg.admin .bubble { background:var(--bubble-admin); border-bottom-right-radius:4px; }
-    .msg-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:0 4px; color:var(--muted); }
+    .msg-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:0 4px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .msg-ts { font-size:10px; color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0; white-space:nowrap; }
 
     /* ── REPLY BAR ── */
     .reply { padding:12px 16px; background:var(--surface); border-top:1px solid var(--border); flex-direction:column; gap:8px; display:none; }
@@ -201,6 +202,7 @@
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-success" id="btn-react" onclick="reactivar()" style="display:none">🤖 Reactivar bot</button>
+          <button class="btn" id="btn-borrar" onclick="borrarChat()" style="background:transparent;color:var(--red);border:1px solid var(--red);display:none">🗑️ Borrar</button>
         </div>
       </div>
 
@@ -405,16 +407,19 @@
     const btnReact = document.getElementById("btn-react");
     const replyEl = document.getElementById("reply");
 
+    const btnBorrar = document.getElementById("btn-borrar");
     if (tipo === "handover") {
       statusEl.textContent = "🔴 Esperando atención humana";
       statusEl.className = "chat-status status-handover";
       btnReact.style.display = "inline-flex";
+      btnBorrar.style.display = "inline-flex";
       replyEl.classList.add("show");
     } else {
       statusEl.textContent = "🔵 Hablando con el bot";
       statusEl.className = "chat-status status-activa";
       btnReact.style.display = "none";
-      replyEl.classList.remove("show"); // Solo se puede ver, no responder
+      btnBorrar.style.display = "inline-flex";
+      replyEl.classList.remove("show");
     }
 
     const conv = tipo === "handover" ? espera[telefono] : activas[telefono];
@@ -430,6 +435,8 @@
     document.getElementById("chat-hdr").classList.remove("show");
     document.getElementById("reply").classList.remove("show");
     document.getElementById("messages").innerHTML = "";
+    document.getElementById("btn-borrar").style.display = "none";
+    document.getElementById("btn-react").style.display = "none";
   }
 
   /* ── RENDER MENSAJES ────────────────────── */
@@ -481,8 +488,9 @@
 
       if (!contenido) contenido = `<span>${esc(textoLimpio)}</span>`;
 
+      const tsStr = parte.ts ? formatTs(parte.ts) : "";
       return `<div class="msg ${role}">
-        <div class="msg-lbl">${label}</div>
+        <div class="msg-lbl"><span>${label}</span>${tsStr ? `<span class="msg-ts">${tsStr}</span>` : ""}</div>
         <div class="bubble">${contenido}</div>
       </div>`;
     }).join("");
@@ -562,6 +570,51 @@
   }
 
   /* ── UTILS ──────────────────────────────── */
+  /* ── BORRAR CHAT ──────────────────────── */
+  async function borrarChat() {
+    if (!tel) return;
+    if (!confirm(`¿Borrar el historial de +${tel}? Esta acción no se puede deshacer.`)) return;
+
+    const btn = document.getElementById("btn-borrar");
+    btn.disabled = true;
+    btn.textContent = "Borrando...";
+
+    try {
+      const r = await fetch("/api/borrar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefono: tel }),
+        credentials: "include",
+      });
+      if (r.ok) {
+        toast("🗑️ Historial borrado", "ok");
+        // Actualizar localmente
+        if (espera[tel]) espera[tel].history = [];
+        if (activas[tel]) activas[tel].history = [];
+        renderMensajes(espera[tel] || activas[tel] || { history: [] });
+      } else {
+        toast("❌ Error al borrar", "err");
+      }
+    } catch { toast("❌ Error de conexión", "err"); }
+
+    btn.disabled = false;
+    btn.textContent = "🗑️ Borrar";
+  }
+
+  /* ── FORMATEAR TIMESTAMP ────────────────── */
+  function formatTs(ts) {
+    if (!ts) return "";
+    const d = new Date(ts);
+    const ahora = new Date();
+    const hoy = ahora.toDateString();
+    const ayer = new Date(ahora - 86400000).toDateString();
+    const hora = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+
+    if (d.toDateString() === hoy) return hora;
+    if (d.toDateString() === ayer) return `ayer ${hora}`;
+    return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" }) + " " + hora;
+  }
+
   function esc(s) {
     return String(s)
       .replace(/&/g,"&amp;").replace(/</g,"&lt;")
