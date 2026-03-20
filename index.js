@@ -153,8 +153,8 @@ app.get("/api/contactos", authMiddleware, apiLimiter, async (req, res) => {
 });
 
 // Servir media (imágenes/audios) guardados en Redis
-app.get("/api/media/:key(*)", authMiddleware, async (req, res) => {
-  const key = req.params.key;
+app.get("/api/media/*", authMiddleware, async (req, res) => {
+  const key = req.params[0];
   // Validar que la key tenga el formato correcto (evitar path traversal)
   if (!/^media:[0-9]+:[0-9]+$/.test(key)) {
     return res.status(400).json({ error: "Key inválida" });
