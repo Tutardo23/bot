@@ -5,6 +5,8 @@ import axios from "axios";
 import dotenv from "dotenv";
 import crypto from "crypto";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { handleTestMessage, setIO } from "./bot.js";
 import { getSession, updateSession, listHandovers } from "./memory.js";
 import { Redis } from "@upstash/redis";
@@ -17,6 +19,42 @@ const io = new Server(httpServer);
 
 // Inyectamos io en bot.js para eventos en tiempo real
 setIO(io);
+
+// Necesario para que rate-limit funcione detrás de proxies (Railway, Render, etc.)
+app.set("trust proxy", 1);
+
+// ── Seguridad: headers HTTP ──────────────────────────────────────────
+// helmet() sin opciones = configuración por defecto, sin bugs de CSP
+app.use(helmet({
+  contentSecurityPolicy: false, // Lo seteamos manualmente abajo, más simple
+}));
+
+// CSP manual — una línea, sin riesgo de error
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: ws:; img-src 'self' data:; frame-ancestors 'none'"
+  );
+  next();
+});
+
+// ── Seguridad: rate limiting ─────────────────────────────────────────
+// Login: máx 10 intentos por IP cada 15 minutos
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: "Demasiados intentos. Esperá 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false }, // Evita el error de proxy
+});
+
+// Panel admin: 120 requests/minuto
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  validate: { xForwardedForHeader: false },
+});
 
 app.use(cookieParser());
 app.use(express.json());
@@ -72,7 +110,7 @@ async function authMiddleware(req, res, next) {
 /* =========================================
    RUTAS ADMIN — LOGIN / LOGOUT
 ========================================= */
-app.post("/api/login", async (req, res) => {
+app.post("/api/login", loginLimiter, async (req, res) => {
   const { password } = req.body;
   if (!password || password !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: "Contraseña incorrecta" });
@@ -98,13 +136,13 @@ app.post("/api/logout", authMiddleware, async (req, res) => {
 ========================================= */
 
 // Listar conversaciones en HANDOVER
-app.get("/api/conversaciones", authMiddleware, async (req, res) => {
+app.get("/api/conversaciones", authMiddleware, apiLimiter, async (req, res) => {
   const lista = await listHandovers();
   res.json(lista);
 });
 
 // Responder al padre desde el panel
-app.post("/api/responder", authMiddleware, async (req, res) => {
+app.post("/api/responder", authMiddleware, apiLimiter, async (req, res) => {
   const { telefono, mensaje } = req.body;
   if (!telefono || !mensaje) return res.status(400).json({ error: "Faltan datos" });
 
@@ -123,7 +161,7 @@ app.post("/api/responder", authMiddleware, async (req, res) => {
 });
 
 // Reactivar el bot
-app.post("/api/reactivar", authMiddleware, async (req, res) => {
+app.post("/api/reactivar", authMiddleware, apiLimiter, async (req, res) => {
   const { telefono } = req.body;
   if (!telefono) return res.status(400).json({ error: "Falta teléfono" });
 
