@@ -36,6 +36,7 @@ function limpiarHistorial(history) {
   }));
 }
 
+// Arma el array de partes para Gemini (texto + imagen/audio si existe)
 function buildParts(text, mediaData) {
   if (!mediaData) return [{ text: text || "" }];
 
@@ -62,9 +63,12 @@ export async function handleTestMessage(message) {
     const minutos = (Date.now() - session.lastSeen) / 1000 / 60;
 
     if (minutos >= HANDOVER_RESET_MINUTES) {
+      // Pasó el tiempo → bot retoma solo
       console.log(`🔄 Reactivando bot para ${from} (${Math.round(minutos)} min inactivo).`);
       session = { status: "ACTIVE", greeted: false, lastIntent: null, history: [], tempData: {}, turns: 0, lastSeen: Date.now(), isReturningUser: true };
     } else {
+      // Bot en silencio → guardamos el mensaje del padre y avisamos al panel
+      // Guardamos texto, o imagen como dataURL para mostrarla en el panel
       let parteGuardada;
       if (mediaData && message.type === "image") {
         const mime = mediaData.mimeType.split(";")[0].trim();
@@ -82,13 +86,13 @@ export async function handleTestMessage(message) {
 
       emitir("nuevo_mensaje_handover", {
         telefono: from,
-        // 🔥 ARREGLO CRÍTICO AQUÍ: Cambiamos textoGuardado por text
-        mensaje: { text: text, ts: Date.now() } 
+        mensaje: { text: textoGuardado, ts: Date.now() }
       });
       return null;
     }
   }
 
+  // Historial no puede empezar con "model"
   while (session.history?.length > 0 && session.history[0].role === "model") {
     session.history.shift();
   }
@@ -98,6 +102,7 @@ export async function handleTestMessage(message) {
     weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "numeric",
   });
 
+  // Cargar perfil del contacto para personalizar la respuesta
   const contacto = await getContacto(from);
   const nombrePadre = contacto.nombre || null;
   const hijos = contacto.hijos?.length > 0 ? contacto.hijos.join(", ") : null;
@@ -120,11 +125,13 @@ REGLAS DE COMPORTAMIENTO:
 2. Párrafos cortos. Emojis moderados.
 3. Temas ajenos al colegio: decí que solo sabés de la institución.
 4. Si el padre te dice su nombre, usalo en la conversación.
-5. DETECCIÓN DE NOMBRES — Si en algún mensaje el padre menciona su nombre o el de su hijo/a, extraelo y respondé con este JSON al FINAL de tu respuesta:
+5. DETECCIÓN DE NOMBRES — Si en algún mensaje el padre menciona su nombre o el de su hijo/a, extraelo y respondé con este JSON al FINAL de tu respuesta (invisible para el usuario, después de tu mensaje normal):
    |||CONTACTO:{"nombre":"Juan Pérez","hijos":["Sofía","Lucas"]}|||
-   Solo incluí los campos que mencionó.
-6. Audio: transcribilo y respondé como si fuera texto.
-7. Imagen: analizala y respondé en contexto.
+   Solo incluí los campos que mencionó. Si solo dijo su nombre: |||CONTACTO:{"nombre":"Juan Pérez"}|||
+   Si solo mencionó un hijo: |||CONTACTO:{"hijos":["Sofía"]}|||
+   Si no hay datos nuevos de contacto en este mensaje: no incluyas el bloque |||CONTACTO|||
+5. Audio: transcribilo y respondé como si fuera texto.
+6. Imagen: analizala y respondé en contexto.
 
 REGLA CRÍTICA — CUÁNDO DERIVAR A HUMANO (ACTION_HANDOVER):
 Derivás ÚNICAMENTE en estos casos, y SOLO cuando se cumplen TODAS las condiciones:
@@ -150,7 +157,11 @@ CASO D — Urgencia real:
   → Derivás DE INMEDIATO sin pedir datos
   Respondés: ACTION_HANDOVER
 
-PROHIBIDO derivar si no completaste el diagnóstico o faltan datos.
+PROHIBIDO derivar si:
+- El padre solo mencionó que tiene un problema (sin haber intentado los pasos)
+- No completaste el diagnóstico de la base de conocimiento
+- No te dieron los datos requeridos todavía
+- Hay dudas sobre cuotas, horarios, uniforme, trámites → resolvés VOS
 
 MENÚ INICIAL (solo si es el primer mensaje, copiar exacto):
 ¡Hola! 👋 Soy Pucarito, el asistente virtual del Colegio Pucará 🏫
@@ -166,7 +177,7 @@ MENÚ INICIAL (solo si es el primer mensaje, copiar exacto):
 
 Escribí tu consulta o elegí un tema 👇
 
-HANDOVER: Cuando se cumplan TODAS las condiciones, respondé SOLO la palabra ACTION_HANDOVER sin ningún texto extra.
+HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la palabra ACTION_HANDOVER sin ningún texto extra. Si no se cumplen todas, seguí ayudando.
   `.trim();
 
   try {
@@ -180,16 +191,23 @@ HANDOVER: Cuando se cumplan TODAS las condiciones, respondé SOLO la palabra ACT
     const result = await chat.sendMessage(buildParts(text, mediaData));
     let botResponse = result.response.text().trim();
 
+    // ── Extraer y guardar datos de contacto si Gemini los detectó ──
     const contactoMatch = botResponse.match(/\|\|\|CONTACTO:({.*?})\|\|\|/s);
     if (contactoMatch) {
       try {
         const datosContacto = JSON.parse(contactoMatch[1]);
         await updateContacto(from, datosContacto);
+        console.log(`👤 Contacto actualizado para ${from}:`, datosContacto);
       } catch {}
+      // Limpiar el bloque del mensaje antes de enviarlo al padre
       botResponse = botResponse.replace(/\|\|\|CONTACTO:.*?\|\|\|/s, "").trim();
     }
 
+    // ── HANDOVER detectado ─────────────────
     if (botResponse.includes("ACTION_HANDOVER")) {
+      // Guardamos el mensaje del padre que disparó el handover
+      // (sin esto el historial queda vacío en el panel)
+      // Guardamos el mensaje actual con imagen si la hay
       let parteMensajeActual;
       if (mediaData && message.type === "image") {
         const mime = mediaData.mimeType.split(";")[0].trim();
@@ -209,6 +227,7 @@ HANDOVER: Cuando se cumplan TODAS las condiciones, respondé SOLO la palabra ACT
       session.history = historialConMensajeActual;
       await updateSession(from, session);
 
+      // Notificamos al panel con el historial completo
       emitir("nuevo_handover", {
         telefono: from,
         lastSeen: Date.now(),
@@ -222,6 +241,8 @@ HANDOVER: Cuando se cumplan TODAS las condiciones, respondé SOLO la palabra ACT
 
     session.greeted = true;
 
+    // Guardamos historial limpio (máx. 14 turnos)
+    // Si había media en este turno, la guardamos en Redis y referenciamos la key
     let mediaKey = null;
     if (mediaData) {
       mediaKey = await saveMedia(from, mediaData.mimeType, mediaData.base64);
@@ -233,6 +254,7 @@ HANDOVER: Cuando se cumplan TODAS las condiciones, respondé SOLO la palabra ACT
         const textoBase = limpiarAsteriscos(
           msg.parts.map(p => p.text || (p.inlineData ? "" : "")).filter(Boolean).join(" ")
         );
+        // El último mensaje del user puede tener media
         const esUltimoUser = msg.role === "user" && idx === rawHistory.length - 2;
         if (esUltimoUser && mediaKey) {
           return {

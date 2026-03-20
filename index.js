@@ -8,7 +8,7 @@ import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs"; // 🔥 Agregamos fs para leer el archivo a la fuerza
 import { handleTestMessage } from "./bot.js";
-import { getSession, updateSession, listHandovers, listActivas, getContacto, listContactos, getMedia } from "./memory.js";
+import { getSession, updateSession, listHandovers, listActivas, getContacto, listContactos } from "./memory.js";
 import { Redis } from "@upstash/redis";
 
 dotenv.config();
@@ -150,22 +150,6 @@ app.get("/api/activas", authMiddleware, apiLimiter, async (req, res) => {
 app.get("/api/contactos", authMiddleware, apiLimiter, async (req, res) => {
   const lista = await listContactos();
   res.json(lista);
-});
-
-// Servir media (imágenes/audios) guardados en Redis
-app.get("/api/media/*", authMiddleware, async (req, res) => {
-  const key = req.params[0];
-  // Validar que la key tenga el formato correcto (evitar path traversal)
-  if (!/^media:[0-9]+:[0-9]+$/.test(key)) {
-    return res.status(400).json({ error: "Key inválida" });
-  }
-  const media = await getMedia(key);
-  if (!media) return res.status(404).json({ error: "Media no encontrada o expirada" });
-
-  const buffer = Buffer.from(media.base64, "base64");
-  res.setHeader("Content-Type", media.mimeType);
-  res.setHeader("Cache-Control", "private, max-age=86400");
-  res.send(buffer);
 });
 
 app.post("/api/responder", authMiddleware, apiLimiter, async (req, res) => {
