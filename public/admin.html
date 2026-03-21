@@ -229,6 +229,7 @@
   let tipoActivo = null; // "handover" | "activa"
   let pollInterval = null;
   let isLogged = false;
+  const blobCache = {}; // cache de blob URLs para no re-fetchear imágenes
 
   /* ── INIT ──────────────────────────────── */
   window.addEventListener("DOMContentLoaded", async () => {
@@ -322,7 +323,7 @@
       renderListas();
       if (tel) {
         const conv = tipoActivo === "handover" ? espera[tel] : activas[tel];
-        if (conv) renderMensajes(conv);
+        if (conv) renderMensajes(conv);  // async, no esperamos
       }
 
     } catch {}
@@ -422,8 +423,8 @@
       replyEl.classList.remove("show");
     }
 
-    const conv = tipo === "handover" ? espera[telefono] : activas[telefono];
-    if (conv) renderMensajes(conv);
+    const convActual = tipo === "handover" ? espera[telefono] : activas[telefono];
+    if (convActual) renderMensajes(convActual);  // async, no esperamos
 
     if (tipo === "handover") document.getElementById("reply-input").focus();
   }
@@ -440,7 +441,7 @@
   }
 
   /* ── RENDER MENSAJES ────────────────────── */
-  function renderMensajes(conv) {
+  async function renderMensajes(conv) {
     const container = document.getElementById("messages");
     const msgs = conv.history || [];
 
@@ -449,7 +450,8 @@
       return;
     }
 
-    const html = msgs.map(msg => {
+    // renderMensajes es async porque fetchea media con credenciales
+    const items = await Promise.all(msgs.map(async msg => {
       const parte = msg.parts?.[0] || {};
       const texto = parte.text || "";
       const mediaKey = parte.mediaKey || null;
@@ -458,43 +460,48 @@
       const esAdmin = texto.startsWith("[Admin]:");
       const role = esAdmin ? "admin" : msg.role;
       const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Pucarito";
-      const textoLimpio = esAdmin ? texto.replace("[Admin]: ", "") : texto;
+      // Ocultar el texto placeholder que va a Gemini
+      const textoFiltrado = (texto === "El usuario envió esta imagen:" || texto === "El usuario envió este audio:") ? "" : texto;
+      const textoLimpio = esAdmin ? textoFiltrado.replace("[Admin]: ", "") : textoFiltrado;
 
       let contenido = "";
 
       if (mediaKey && mimeType.startsWith("image/")) {
-        const url = `/api/media?key=${encodeURIComponent(mediaKey)}`;
-        contenido += `
-          <img src="${url}" alt="Imagen del padre"
+        // Fetcheamos con credenciales y creamos un blob URL
+        const blobUrl = await fetchMediaUrl(mediaKey);
+        if (blobUrl) {
+          contenido += `<img src="${blobUrl}" alt="Imagen del padre"
             style="max-width:220px;max-height:300px;border-radius:8px;display:block;cursor:pointer;margin-bottom:${textoLimpio ? '6px' : '0'}"
-            onclick="window.open('${url}','_blank')"
-            onerror="this.outerHTML='<span style=&quot;font-size:12px;color:var(--muted)&quot;>🖼️ Imagen expirada</span>'"
+            onclick="window.open('${blobUrl}','_blank')"
           />`;
+        } else {
+          contenido += `<span style="font-size:12px;color:var(--muted)">🖼️ Imagen no disponible</span>`;
+        }
       } else if (mediaKey && mimeType.startsWith("audio/")) {
-        const url = `/api/media?key=${encodeURIComponent(mediaKey)}`;
-        contenido += `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:${textoLimpio ? '6px' : '0'}">
+        const blobUrl = await fetchMediaUrl(mediaKey);
+        if (blobUrl) {
+          contenido += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:${textoLimpio ? '6px' : '0'}">
             <span>🎙️</span>
             <audio controls style="height:32px;max-width:200px">
-              <source src="${url}" type="${mimeType}">
+              <source src="${blobUrl}" type="${mimeType}">
             </audio>
           </div>`;
+        } else {
+          contenido += `<span style="font-size:12px;color:var(--muted)">🎙️ Audio no disponible</span>`;
+        }
       }
 
-      // Texto (si no es un placeholder de media)
-      if (textoLimpio && !textoLimpio.startsWith("[🎙️") && !textoLimpio.startsWith("[🖼️")) {
-        contenido += `<span>${esc(textoLimpio)}</span>`;
-      }
-
-      if (!contenido) contenido = `<span>${esc(textoLimpio)}</span>`;
+      if (textoLimpio) contenido += `<span>${esc(textoLimpio)}</span>`;
+      if (!contenido) contenido = `<span style="color:var(--muted);font-size:12px">[media]</span>`;
 
       const tsStr = parte.ts ? formatTs(parte.ts) : "";
       return `<div class="msg ${role}">
         <div class="msg-lbl"><span>${label}</span>${tsStr ? `<span class="msg-ts">${tsStr}</span>` : ""}</div>
         <div class="bubble">${contenido}</div>
       </div>`;
-    }).join("");
+    }));
 
+    const html = items.join("");
     if (container.innerHTML !== html) {
       container.innerHTML = html;
       container.scrollTop = container.scrollHeight;
@@ -570,6 +577,25 @@
   }
 
   /* ── UTILS ──────────────────────────────── */
+  /* ── FETCH MEDIA CON CREDENCIALES ─────── */
+  // Los <img> y <audio> del navegador NO mandan cookies.
+  // Fetcheamos el media manualmente con credentials y lo convertimos a blob URL.
+  async function fetchMediaUrl(mediaKey) {
+    if (blobCache[mediaKey]) return blobCache[mediaKey];
+    try {
+      const r = await fetch(`/api/media?key=${encodeURIComponent(mediaKey)}`, {
+        credentials: "include"
+      });
+      if (!r.ok) return null;
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      blobCache[mediaKey] = url;
+      return url;
+    } catch {
+      return null;
+    }
+  }
+
   /* ── BORRAR CHAT ──────────────────────── */
   async function borrarChat() {
     if (!tel) return;

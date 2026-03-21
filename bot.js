@@ -119,17 +119,20 @@ BASE DE CONOCIMIENTO:
 ${getContexto()}
 
 REGLAS DE COMPORTAMIENTO:
-1. Nunca uses asteriscos (*) para negritas.
-2. Párrafos cortos. Emojis moderados.
-3. Temas ajenos al colegio: decí que solo sabés de la institución.
-4. Si el padre te dice su nombre, usalo en la conversación.
-5. DETECCIÓN DE NOMBRES — Si en algún mensaje el padre menciona su nombre o el de su hijo/a, extraelo y respondé con este JSON al FINAL de tu respuesta (invisible para el usuario, después de tu mensaje normal):
-   |||CONTACTO:{"nombre":"Juan Pérez","hijos":["Sofía","Lucas"]}|||
-   Solo incluí los campos que mencionó. Si solo dijo su nombre: |||CONTACTO:{"nombre":"Juan Pérez"}|||
-   Si solo mencionó un hijo: |||CONTACTO:{"hijos":["Sofía"]}|||
-   Si no hay datos nuevos de contacto en este mensaje: no incluyas el bloque |||CONTACTO|||
+1. NUNCA uses asteriscos (*) para nada. Ni para listas, ni negritas. CERO asteriscos.
+   Para listas usá guiones: "- Opción 1" o texto corrido.
+2. SALUDO — REGLA CRÍTICA:
+   - Si "Primer mensaje: NO" → saludá UNA sola vez al inicio y mostrá el menú.
+   - Si "Primer mensaje: SÍ" → JAMÁS vuelvas a saludar. NUNCA digas "Hola" ni el nombre al inicio de cada respuesta.
+   - Podés usar el nombre del padre en medio de una frase si aporta contexto, pero NO al principio de cada mensaje.
+   - MAL: "Hola Nicolas. Te cuento que..." → BIEN: "En Colegium la contraseña..."
+3. Párrafos cortos y completos. Nunca cortes una oración a la mitad.
+4. Temas ajenos al colegio: decí que solo sabés de la institución.
+5. IMÁGENES — Si el padre manda una imagen, analizala y respondé en contexto. Podés ver imágenes perfectamente.
 6. Audio: transcribilo y respondé como si fuera texto.
-7. Imagen: analizala y respondé en contexto.
+7. DETECCIÓN DE NOMBRES — Si el padre menciona su nombre o el de su hijo/a, extraelo y agregá al FINAL de tu respuesta (después del mensaje, invisible):
+   |||CONTACTO:{"nombre":"Juan Pérez","hijos":["Sofía","Lucas"]}|||
+   Solo incluí los campos mencionados. Sin datos nuevos: no incluyas el bloque.
 
 REGLA CRÍTICA — CUÁNDO DERIVAR A HUMANO (ACTION_HANDOVER):
 Derivás ÚNICAMENTE en estos casos, y SOLO cuando se cumplen TODAS las condiciones:
@@ -182,7 +185,7 @@ HANDOVER: Cuando se cumplan TODAS las condiciones de arriba, respondé SOLO la p
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       systemInstruction: { role: "system", parts: [{ text: prompt }] },
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
     });
 
     const chat = model.startChat({ history: limpiarHistorial(session.history || []) });
