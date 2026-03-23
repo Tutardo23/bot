@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Panel Admin — Colegio Pucará</title>
+  <title>Panel Admin — Red de Colegios</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -92,24 +92,27 @@
     .msg-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:0 4px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .msg-ts { font-size:10px; color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0; white-space:nowrap; }
 
-    /* ── REPLY BAR ── */
-    .reply { padding:12px 16px; background:var(--surface); border-top:1px solid var(--border); flex-direction:column; gap:8px; display:none; }
-    .reply.show { display:flex; }
+    /* ── QUICK REPLIES Y REPLY BAR ── */
+    .reply-container { background:var(--surface); border-top:1px solid var(--border); display:none; flex-direction:column; }
+    .reply-container.show { display:flex; }
+    .quick-replies { display:flex; gap:8px; padding:10px 16px; overflow-x:auto; background:var(--surface2); border-bottom:1px solid var(--border); }
+    .quick-replies::-webkit-scrollbar { height: 4px; }
+    .reply { padding:12px 16px; display:flex; flex-direction:column; gap:8px; }
     .reply-row { display:flex; gap:8px; align-items:flex-end; }
     textarea { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:10px 14px; color:var(--text); font-size:14px; resize:none; max-height:100px; outline:none; font-family:inherit; transition:border-color .2s; }
     textarea:focus { border-color:var(--accent); }
     .hint { font-size:11px; color:var(--muted); }
 
     /* ── BOTONES ── */
-    .btn { display:inline-flex; align-items:center; gap:5px; padding:8px 14px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all .15s; }
+    .btn { display:inline-flex; align-items:center; gap:5px; padding:8px 14px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all .15s; white-space:nowrap; }
     .btn:disabled { opacity:.5; cursor:not-allowed; }
     .btn:active:not(:disabled) { transform:scale(.97); }
     .btn-primary { background:var(--accent); color:#fff; }
     .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
     .btn-success { background:var(--green); color:#fff; }
     .btn-success:hover:not(:disabled) { filter:brightness(1.1); }
-    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
-    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-ghost { background:var(--surface); color:var(--text); border:1px solid var(--border); font-weight: 500; }
+    .btn-ghost:hover { background:var(--surface2); border-color:var(--accent); }
     .btn-watch { background:transparent; color:var(--blue); border:1px solid var(--blue); }
     .btn-watch:hover { background:rgba(56,189,248,.1); }
 
@@ -125,10 +128,9 @@
 </head>
 <body>
 
-<!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
-    <div class="logo">Pucará<span>.</span></div>
+    <div class="logo">Admin<span>.</span>Red</div>
     <p class="subtitle">Panel de atención · Ingresá tu contraseña</p>
     <input type="password" id="pwd" placeholder="Contraseña" autocomplete="current-password"/>
     <div class="error-msg" id="err-login">Contraseña incorrecta. Intentá de nuevo.</div>
@@ -136,14 +138,12 @@
   </div>
 </div>
 
-<!-- PANEL -->
 <div id="app">
 
-  <!-- HEADER -->
   <div class="header">
     <div class="header-title">
       <div class="dot"></div>
-      Panel Admin · Colegio Pucará
+      Panel Admin · Red de Colegios
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <div class="header-badges">
@@ -154,10 +154,8 @@
     </div>
   </div>
 
-  <!-- LAYOUT 3 COLUMNAS -->
   <div class="main">
 
-    <!-- COL 1: EN ESPERA (HANDOVER) -->
     <div class="col">
       <div class="col-hdr">
         <div class="col-hdr-title">
@@ -171,7 +169,6 @@
       </div>
     </div>
 
-    <!-- COL 2: ACTIVAS (BOT HABLANDO) -->
     <div class="col">
       <div class="col-hdr">
         <div class="col-hdr-title">
@@ -185,7 +182,6 @@
       </div>
     </div>
 
-    <!-- COL 3: CHAT -->
     <div class="chat">
 
       <div class="placeholder" id="placeholder">
@@ -197,23 +193,32 @@
       <div class="chat-hdr" id="chat-hdr">
         <div>
           <div class="chat-phone" id="chat-phone">+54 9 381...</div>
-          <div id="chat-sub" style="font-size:11px;color:var(--muted);margin-top:1px"></div>
-          <div class="chat-status" id="chat-status">🟡 Esperando atención</div>
+          <div id="chat-sub" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          <div class="chat-status" id="chat-status" style="margin-top:4px">🟡 Esperando atención</div>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-success" id="btn-react" onclick="reactivar()" style="display:none">🤖 Reactivar bot</button>
+          <button class="btn btn-success" id="btn-react" onclick="reactivar()" style="display:none">✅ Marcar como Resuelto y Reactivar Bot</button>
           <button class="btn" id="btn-borrar" onclick="borrarChat()" style="background:transparent;color:var(--red);border:1px solid var(--red);display:none">🗑️ Borrar</button>
         </div>
       </div>
 
       <div class="messages" id="messages"></div>
 
-      <div class="reply" id="reply">
-        <div class="reply-row">
-          <textarea id="reply-input" placeholder="Escribí tu respuesta al padre/tutor..." rows="2" onkeydown="handleKey(event)"></textarea>
-          <button class="btn btn-primary" onclick="enviar()">Enviar ↑</button>
+      <div class="reply-container" id="reply-container">
+        <div class="quick-replies">
+          <button class="btn btn-ghost" onclick="usarPlantilla('🔑 Tu contraseña ha sido blanqueada. Tu nueva clave provisoria es tu número de DNI. ¡Saludos!')">🔑 Blanqueo DNI</button>
+          <button class="btn btn-ghost" onclick="usarPlantilla('📄 Ya enviamos la constancia de alumno regular a tu correo institucional. ¡Saludos!')">📄 Constancia Enviada</button>
+          <button class="btn btn-ghost" onclick="usarPlantilla('Hola, para poder ayudarte con la cuenta necesito que me confirmes el DNI del alumno por favor.')">❓ Pedir DNI</button>
+          <button class="btn btn-ghost" onclick="usarPlantilla('Lamentablemente, como la cuenta es personal no podemos recuperarla desde acá. Vas a tener que crear una cuenta nueva en secretaría.')">❌ No se puede recuperar</button>
         </div>
-        <div class="hint">Shift+Enter para enviar · Enter para nueva línea</div>
+        
+        <div class="reply" id="reply">
+          <div class="reply-row">
+            <textarea id="reply-input" placeholder="Escribí tu respuesta al padre/tutor..." rows="2" onkeydown="handleKey(event)"></textarea>
+            <button class="btn btn-primary" onclick="enviar()">Enviar ↑</button>
+          </div>
+          <div class="hint">Shift+Enter para enviar · Enter para nueva línea</div>
+        </div>
       </div>
 
     </div>
@@ -399,14 +404,22 @@
 
     const convData = tipo === "handover" ? espera[telefono] : activas[telefono];
     const displayName = convData?.nombre || `+${telefono}`;
-    const displaySub = convData?.nombre ? `+${telefono}${convData.hijos?.length ? ' · 👦 ' + convData.hijos.join(', ') : ''}` : '';
+    
+    // Inyección de la info valiosa en el header
+    const displaySub = convData?.nombre ? 
+      `🏫 <strong style="color:var(--text)">${esc(convData.colegio || 'Sin colegio')}</strong> | 
+       📚 ${esc(convData.curso || 'Sin curso')} | 
+       💳 DNI: <strong style="color:var(--text)">${esc(convData.dni || 'No provisto')}</strong> | 
+       👦 ${esc(convData.hijos?.join(', ') || 'Sin hijos')}` 
+      : `+${telefono}`;
+
     document.getElementById("chat-phone").textContent = displayName;
     const subEl = document.getElementById("chat-sub");
-    if (subEl) subEl.textContent = displaySub;
+    if (subEl) subEl.innerHTML = displaySub;
 
     const statusEl = document.getElementById("chat-status");
     const btnReact = document.getElementById("btn-react");
-    const replyEl = document.getElementById("reply");
+    const replyContainer = document.getElementById("reply-container");
 
     const btnBorrar = document.getElementById("btn-borrar");
     if (tipo === "handover") {
@@ -414,13 +427,13 @@
       statusEl.className = "chat-status status-handover";
       btnReact.style.display = "inline-flex";
       btnBorrar.style.display = "inline-flex";
-      replyEl.classList.add("show");
+      replyContainer.classList.add("show");
     } else {
       statusEl.textContent = "🔵 Hablando con el bot";
       statusEl.className = "chat-status status-activa";
       btnReact.style.display = "none";
       btnBorrar.style.display = "inline-flex";
-      replyEl.classList.remove("show");
+      replyContainer.classList.remove("show");
     }
 
     const convActual = tipo === "handover" ? espera[telefono] : activas[telefono];
@@ -434,10 +447,17 @@
     tipoActivo = null;
     document.getElementById("placeholder").style.display = "flex";
     document.getElementById("chat-hdr").classList.remove("show");
-    document.getElementById("reply").classList.remove("show");
+    document.getElementById("reply-container").classList.remove("show");
     document.getElementById("messages").innerHTML = "";
     document.getElementById("btn-borrar").style.display = "none";
     document.getElementById("btn-react").style.display = "none";
+  }
+
+  /* ── RESPUESTAS RÁPIDAS ─────────────────── */
+  function usarPlantilla(texto) {
+    const input = document.getElementById("reply-input");
+    input.value = texto;
+    input.focus();
   }
 
   /* ── RENDER MENSAJES ────────────────────── */
@@ -459,7 +479,7 @@
 
       const esAdmin = texto.startsWith("[Admin]:");
       const role = esAdmin ? "admin" : msg.role;
-      const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Pucarito";
+      const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Asistente";
       // Ocultar el texto placeholder que va a Gemini
       const textoFiltrado = (texto === "El usuario envió esta imagen:" || texto === "El usuario envió este audio:") ? "" : texto;
       const textoLimpio = esAdmin ? textoFiltrado.replace("[Admin]: ", "") : textoFiltrado;
@@ -467,7 +487,6 @@
       let contenido = "";
 
       if (mediaKey && mimeType.startsWith("image/")) {
-        // Fetcheamos con credenciales y creamos un blob URL
         const blobUrl = await fetchMediaUrl(mediaKey);
         if (blobUrl) {
           contenido += `<img src="${blobUrl}" alt="Imagen del padre"
@@ -549,7 +568,7 @@
     if (!tel) return;
     const btn = document.getElementById("btn-react");
     btn.disabled = true;
-    btn.textContent = "Reactivando...";
+    btn.textContent = "Cerrando ticket...";
 
     try {
       const r = await fetch("/api/reactivar", {
@@ -559,7 +578,7 @@
         credentials: "include",
       });
       if (r.ok) {
-        toast("🤖 Bot reactivado", "ok");
+        toast("🤖 Ticket resuelto, bot reactivado", "ok");
         delete espera[tel];
         cerrarChat();
         renderListas();
@@ -569,17 +588,15 @@
     } catch { toast("❌ Error de conexión", "err"); }
 
     btn.disabled = false;
-    btn.textContent = "🤖 Reactivar bot";
+    btn.textContent = "✅ Marcar como Resuelto y Reactivar Bot";
   }
 
   function handleKey(e) {
-    if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); enviar(); }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); }
   }
 
   /* ── UTILS ──────────────────────────────── */
   /* ── FETCH MEDIA CON CREDENCIALES ─────── */
-  // Los <img> y <audio> del navegador NO mandan cookies.
-  // Fetcheamos el media manualmente con credentials y lo convertimos a blob URL.
   async function fetchMediaUrl(mediaKey) {
     if (blobCache[mediaKey]) return blobCache[mediaKey];
     try {
@@ -614,7 +631,6 @@
       });
       if (r.ok) {
         toast("🗑️ Historial borrado", "ok");
-        // Actualizar localmente
         if (espera[tel]) espera[tel].history = [];
         if (activas[tel]) activas[tel].history = [];
         renderMensajes(espera[tel] || activas[tel] || { history: [] });
@@ -667,7 +683,7 @@
   function notificar(msg) {
     if (!isLogged) return;
     if (Notification.permission === "granted") {
-      new Notification("Pucará Admin", { body: msg });
+      new Notification("Red Colegios Admin", { body: msg });
     } else if (Notification.permission !== "denied") {
       Notification.requestPermission();
     }

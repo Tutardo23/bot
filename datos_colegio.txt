@@ -1,38 +1,28 @@
-=== BASE DE CONOCIMIENTO — COLEGIO PUCARÁ ===
+=== BASE DE CONOCIMIENTO — RED DE COLEGIOS ===
 
-[INSTITUCIÓN]
+[DATOS PUCARÁ]
 Dirección: Av. Siempre Viva 123, San Miguel de Tucumán.
 Tel. urgencias: 381-4444444
 WhatsApp secretaría: 381-5555555
 Email: administracion@colegiopucara.edu.ar
 Director: Prof. Carlos Pérez | Vicedirectora: Lic. Ana Gómez.
-
-[HORARIOS]
+[HORARIOS PUCARÁ]
 Administración: Lun-Vie 8:00–13:00
 Jardín: Mañana 8:30–12:00 / Tarde 13:30–17:00
 Primaria: 8:00–13:00 (simple) o 8:00–16:00 (extendida)
 Secundaria: 7:30–13:30
 Llegadas tarde: tolerancia 10 min. Después de las 8:15 requiere adulto que firme el libro. 3 tardanzas = media falta.
-
-[UNIFORME]
+[UNIFORME PUCARÁ]
 Ed. Física: jogging azul marino con escudo, chomba blanca del colegio, zapatillas blancas o negras (sin flúor).
 Gala (lunes y actos): pantalón gris, chomba blanca con escudo, zapatos negros, pullover bordó V.
 Dónde comprar: Casa del Uniforme (San Martín 500) o Textil Tucumán.
-
-[PAGOS Y BECAS 2026]
+[PAGOS Y BECAS 2026 PUCARÁ]
 Matrícula: $50.000 (no reembolsable).
 Cuota: $30.000/mes. Vence día 10. Del 11 al 20: +5% interés.
 Pagos: transferencia (Alias: COLEGIO.PUCARA.2026) o débito automático. NO SE ACEPTA EFECTIVO.
 Descuento hermanos: 10% (2do hijo), 20% (3er hijo).
 Becas: solo en Marzo y Octubre, por carta a administración.
-
-[SALUD Y AUSENCIAS]
-Ausencia: avisar antes de las 9:00 por cuaderno o WhatsApp.
-Certificado médico: obligatorio si falta más de 48hs o si falta a prueba.
-Retiro anticipado: solo padres/tutores autorizados con DNI.
-Medicamentos: preceptores no suministran salvo autorización médica escrita.
-
-[COMEDOR Y KIOSCO]
+[COMEDOR Y KIOSCO PUCARÁ]
 Kiosco: recreos 10:00 y 11:30. Frutas, cereales, snacks. Sin gaseosas.
 Ticket comedor: $4.500 (comprar en kiosco antes de las 9:30).
 Menú semanal:
@@ -43,7 +33,33 @@ Menú semanal:
   Viernes: Hamburguesas caseras con ensalada.
   Celíacos: disponible con aviso previo de 24hs.
 
-[FERIADOS NACIONALES 2025]
+[DATOS LOS CERROS]
+Dirección: (Completar dirección Los Cerros)
+Teléfono / WhatsApp: (Completar)
+[HORARIOS LOS CERROS]
+(Completar horarios Los Cerros)
+[UNIFORME LOS CERROS]
+(Completar uniforme Los Cerros)
+[PAGOS Y BECAS LOS CERROS]
+(Completar info de pagos)
+
+[DATOS JARDÍN LOS CERDITOS]
+Dirección: (Completar dirección Los Cerditos)
+Teléfono / WhatsApp: (Completar)
+[HORARIOS LOS CERDITOS]
+(Completar horarios Los Cerditos)
+[UNIFORME LOS CERDITOS]
+(Completar uniforme Los Cerditos)
+[PAGOS Y BECAS LOS CERDITOS]
+(Completar info de pagos)
+
+[POLÍTICAS GENERALES (APLICA A LOS 3 COLEGIOS)]
+[SALUD Y AUSENCIAS]
+Ausencia: avisar antes de las 9:00 por cuaderno o WhatsApp.
+Certificado médico: obligatorio si falta más de 48hs o si falta a prueba.
+Retiro anticipado: solo padres/tutores autorizados con DNI.
+Medicamentos: preceptores no suministran salvo autorización médica escrita.
+[FERIADOS NACIONALES 2026]
 - 2 de abril: Día del Veterano de Malvinas (no hay clases)
 - 3 de abril: Viernes Santo (no hay clases)
 - 1 de mayo: Día del Trabajo (no hay clases)
@@ -55,25 +71,14 @@ Menú semanal:
 - 12 de octubre: Día de la Diversidad Cultural (no hay clases)
 - 20 de noviembre: Día de la Soberanía Nacional (no hay clases)
 - 8 de diciembre: Inmaculada Concepción (no hay clases)
-
-[FECHAS CLAVE]
-25/05: Acto patrio (obligatorio, turno mañana).
-09/07: Acto central y locro familiar.
-11/09: Día del Maestro (sin clases).
-21/09: Día del estudiante — picnic en Tafí (secundaria), fiesta en colegio (primaria).
-Libretas: mayo, septiembre, diciembre.
-
-[TRÁMITES]
+[TRÁMITES GENERALES]
 Constancia alumno regular: por WhatsApp, demora 24hs hábiles.
 Pase a otro colegio: requiere libre deuda + entrevista con dirección.
-Inscripciones 2027: hermanos en Octubre, público en Noviembre.
-
 [LLUVIA]
-El colegio NO suspende clases por lluvia salvo comunicado de Defensa Civil.
-Con lluvia intensa: ingreso exclusivo por portón techado de calle lateral.
+El colegio NO suspende clases por lluvia salvo comunicado de Defensa Civil. Con lluvia intensa: ingreso exclusivo por portón techado de calle lateral.
 
 ================================================================
-SOPORTE TÉCNICO — PLATAFORMAS DIGITALES
+SOPORTE TÉCNICO — PLATAFORMAS DIGITALES (Google y Colegium)
 ================================================================
 
 REGLA DE ORO (nunca ignorar):
@@ -82,19 +87,17 @@ recuperadas por el usuario. SOLO EL ADMINISTRADOR puede resetearlas.
 No existe "Olvidé mi contraseña" funcional para los padres.
 Nunca decirle al padre que intente recuperar la contraseña solo.
 
-ANTES DE EMPEZAR EL DIAGNÓSTICO — RECOLECCIÓN DE DATOS:
+ANTES DE EMPEZAR EL DIAGNÓSTICO — RECOLECCIÓN DE DATOS OBLIGATORIA:
 Apenas el padre mencione un problema con Colegium o Google/Classroom,
 lo PRIMERO es recolectar estos datos en UN SOLO mensaje (no en varios):
 
-"Para poder ayudarte mejor, necesito algunos datos:
-- Tu nombre completo
+"Para poder ayudarte y derivar el caso a administración, necesito estos datos:
+- ¿De qué colegio sos? (Pucará, Los Cerros o Los Cerditos)
+- Tu nombre completo y tu número de DNI
 - Nombre del alumno y qué año/grado cursa
-- ¿Es Jardín, Primaria o Secundaria?
 - ¿El problema es con Colegium o con Google/Classroom?
 - ¿Estás usando el celular o la computadora?"
 
-Con esa info ya cargada, el administrador puede resolver el caso
-mucho más rápido sin tener que preguntar de nuevo.
 Guardar estos datos también activa el bloque |||CONTACTO||| automáticamente.
 
 ================================================================
@@ -102,54 +105,43 @@ SOPORTE COLEGIUM
 ================================================================
 
 Síntomas: "no puedo entrar", "usuario incorrecto", "olvidé la clave", "cuenta bloqueada".
-
 PASO 1 — Verificar dispositivo y app:
   Preguntar si usa la App del celular o la web en computadora.
-  - App: pedir que la actualice desde Play Store o App Store e intente de nuevo.
-  - Web o ya actualizó: ir al PASO 2.
+- App: pedir que la actualice desde Play Store o App Store e intente de nuevo.
+- Web o ya actualizó: ir al PASO 2.
 
 PASO 2 — Verificar usuario correcto:
   El usuario de Colegium ES el correo con el que el padre se inscribió en secretaría.
-  Decir: "El usuario no es un nombre, es tu dirección de correo electrónico completa
-  (ejemplo: juanperez@gmail.com). ¿Probaste con todos los mails que usás?"
-  - Probó todos y no entra: ir al PASO 3.
+  Decir: "El usuario no es un nombre, es tu dirección de correo electrónico completa (ejemplo: juanperez@gmail.com). ¿Probaste con todos los mails que usás?"
+- Probó todos y no entra: ir al PASO 3.
 
 PASO 3 — Derivar al administrador:
   Decir exactamente:
-  "Colegium es un sistema cerrado — la contraseña solo puede blanquearla
-  el administrador del colegio, no hay forma de hacerlo vos mismo. 🔐
-  Ya tengo tus datos, voy a pasarte con el equipo para que te ayuden."
-  → Responder solo: ACTION_HANDOVER
+  "Colegium es un sistema cerrado — la contraseña solo puede blanquearla el administrador, no hay forma de hacerlo vos mismo. 🔐 Ya tengo tus datos, voy a pasarte con el equipo para que te ayuden."
+→ Responder solo: [[[DERIVAR_HUMANO]]]
 
 ================================================================
 SOPORTE GOOGLE / CLASSROOM / DRIVE / MEET / GMAIL INSTITUCIONAL
 ================================================================
 
 Síntomas: "no puedo entrar", "contraseña incorrecta", "no aparecen las clases", "pide código".
-
 PASO 1 — Verificar cuenta correcta:
-  Preguntar: "¿Estás seguro de estar usando el correo institucional del colegio
-  (el que te dieron cuando se inscribió el alumno) y no tu Gmail personal?"
-  - Usaba el personal → explicar: cerrar sesión, abrir Gmail, elegir la cuenta institucional.
-  - Ya usaba el institucional → ir al PASO 2.
+  Preguntar: "¿Estás seguro de estar usando el correo institucional del colegio (el que te dieron cuando se inscribió el alumno) y no tu Gmail personal?"
+- Usaba el personal → explicar: cerrar sesión, abrir Gmail, elegir la cuenta institucional.
+- Ya usaba el institucional → ir al PASO 2.
 
 PASO 2 — Verificar que esté usando la cuenta correcta:
-  Decir: "Intentá cerrar todas las sesiones de Google en tu dispositivo y
-  volver a entrar usando solo el correo institucional del colegio.
-  Si no recordás cuál es ese correo, contactá a secretaría."
-  - Si lo intentó y sigue sin entrar → ir al PASO 3.
+  Decir: "Intentá cerrar todas las sesiones de Google en tu dispositivo y volver a entrar usando solo el correo institucional del colegio. Si no recordás cuál es ese correo, contactá a secretaría."
+- Si lo intentó y sigue sin entrar → ir al PASO 3.
 
 PASO 3 — Derivar al administrador:
   Decir exactamente:
-  "Las contraseñas de Google del colegio las maneja el administrador del sistema —
-  no hay forma de recuperarla vos solo. 🙌
-  Ya tengo tus datos, voy a pasarte con el equipo para que te ayuden."
-  → Responder solo: ACTION_HANDOVER
+  "Las contraseñas de Google del colegio las maneja el administrador del sistema — no hay forma de recuperarla vos solo. 🙌 Ya tengo tus datos, voy a pasarte con el equipo para que te ayuden."
+→ Responder solo: [[[DERIVAR_HUMANO]]]
 
 CASO ESPECIAL — Classroom pide código de clase:
   Los profesores invitan a los alumnos directamente, no hace falta ningún código.
-  Decir: "Revisá la bandeja de entrada del correo institucional — debería haber
-  una invitación de tu profesor. Si no aparece, avisame y derivamos al docente."
+  Decir: "Revisá la bandeja de entrada del correo institucional — debería haber una invitación de tu profesor. Si no aparece, avisame y derivamos al docente."
 
 ================================================================
 CUENTA NUEVA (Google o Colegium)
@@ -157,22 +149,8 @@ CUENTA NUEVA (Google o Colegium)
 
 Si piden crear una cuenta nueva desde cero:
   Decir: "Para que secretaría te genere la cuenta necesito algunos datos:
-  - Tu nombre completo y DNI
+  - ¿Para qué colegio es? (Pucará, Los Cerros o Los Cerditos)
+  - Tu nombre completo y número de DNI
   - Nombre del alumno y año/grado que cursa
-  - ¿Es Jardín, Primaria o Secundaria?
   - ¿Para qué plataforma necesitás la cuenta? (Colegium, Google/Classroom, ambas)"
-  Cuando el padre dé los datos → responder solo: ACTION_HANDOVER
-
-================================================================
-RESUMEN PARA EL ADMINISTRADOR (generado automáticamente)
-================================================================
-
-Cuando se hace ACTION_HANDOVER, el administrador va a ver en el panel
-el historial completo con todos los datos ya recolectados:
-- Nombre del padre y DNI (si lo dio)
-- Nombre del alumno, grado y nivel
-- Plataforma con el problema (Colegium / Google)
-- Dispositivo que usa
-- Pasos ya probados
-
-Esto permite resolver el caso en 1 mensaje sin preguntar de nuevo.
+  Cuando el padre dé TODOS los datos → responder solo: [[[DERIVAR_HUMANO]]]
