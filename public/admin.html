@@ -228,13 +228,13 @@
 <div id="toast"></div>
 
 <script>
-  let espera = {};    // telefono → conv (HANDOVER)
-  let activas = {};   // telefono → conv (ACTIVA con bot)
-  let tel = null;     // teléfono abierto actualmente
-  let tipoActivo = null; // "handover" | "activa"
+  let espera = {};    
+  let activas = {};   
+  let tel = null;     
+  let tipoActivo = null; 
   let pollInterval = null;
   let isLogged = false;
-  const blobCache = {}; // cache de blob URLs para no re-fetchear imágenes
+  const blobCache = {}; 
 
   /* ── INIT ──────────────────────────────── */
   window.addEventListener("DOMContentLoaded", async () => {
@@ -293,14 +293,12 @@
 
       const [listaEspera, listaActivas] = await Promise.all([r1.json(), r2.json()]);
 
-      // Detectar nuevos casos en espera
       listaEspera.forEach(c => {
         if (!espera[c.telefono]) {
           notificar(`🔴 Nuevo caso en espera: +${c.telefono}`);
         }
       });
 
-      // Reconstruir mapas
       const nuevoEspera = {};
       listaEspera.forEach(c => {
         nuevoEspera[c.telefono] = espera[c.telefono]
@@ -315,7 +313,6 @@
           : c;
       });
 
-      // Si el chat abierto desapareció de su lista, cerrar
       if (tel) {
         const yaNoEstaEnEspera = tipoActivo === "handover" && !nuevoEspera[tel];
         const yaNoEstaEnActivas = tipoActivo === "activa" && !nuevoActivas[tel];
@@ -328,7 +325,7 @@
       renderListas();
       if (tel) {
         const conv = tipoActivo === "handover" ? espera[tel] : activas[tel];
-        if (conv) renderMensajes(conv);  // async, no esperamos
+        if (conv) renderMensajes(conv);  
       }
 
     } catch {}
@@ -339,7 +336,6 @@
     const totalEspera = Object.keys(espera).length;
     const totalActivas = Object.keys(activas).length;
 
-    // Badges del header
     const be = document.getElementById("badge-espera");
     const ba = document.getElementById("badge-activas");
     be.textContent = `${totalEspera} en espera`;
@@ -347,11 +343,9 @@
     ba.textContent = `${totalActivas} activas`;
     ba.style.display = totalActivas > 0 ? "inline" : "none";
 
-    // Contadores de columna
     document.getElementById("count-espera").textContent = totalEspera;
     document.getElementById("count-activas").textContent = totalActivas;
 
-    // Lista EN ESPERA
     const elEspera = document.getElementById("list-espera");
     if (totalEspera === 0) {
       elEspera.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><p>Sin casos pendientes</p></div>`;
@@ -371,7 +365,6 @@
           </div>`).join("");
     }
 
-    // Lista ACTIVAS
     const elActivas = document.getElementById("list-activas");
     if (totalActivas === 0) {
       elActivas.innerHTML = `<div class="empty"><div class="empty-icon">💬</div><p>Sin conversaciones activas</p></div>`;
@@ -405,7 +398,6 @@
     const convData = tipo === "handover" ? espera[telefono] : activas[telefono];
     const displayName = convData?.nombre || `+${telefono}`;
     
-    // Inyección de la info valiosa en el header
     const displaySub = convData?.nombre ? 
       `🏫 <strong style="color:var(--text)">${esc(convData.colegio || 'Sin colegio')}</strong> | 
        📚 ${esc(convData.curso || 'Sin curso')} | 
@@ -437,7 +429,7 @@
     }
 
     const convActual = tipo === "handover" ? espera[telefono] : activas[telefono];
-    if (convActual) renderMensajes(convActual);  // async, no esperamos
+    if (convActual) renderMensajes(convActual);  
 
     if (tipo === "handover") document.getElementById("reply-input").focus();
   }
@@ -470,7 +462,6 @@
       return;
     }
 
-    // renderMensajes es async porque fetchea media con credenciales
     const items = await Promise.all(msgs.map(async msg => {
       const parte = msg.parts?.[0] || {};
       const texto = parte.text || "";
@@ -480,8 +471,13 @@
       const esAdmin = texto.startsWith("[Admin]:");
       const role = esAdmin ? "admin" : msg.role;
       const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Asistente";
-      // Ocultar el texto placeholder que va a Gemini
-      const textoFiltrado = (texto === "El usuario envió esta imagen:" || texto === "El usuario envió este audio:") ? "" : texto;
+
+      // 🔥 FIX DE INSTRUCCIONES: Ocultamos del panel los textos feos que le mandamos a Gemini para que lea fotos y audios
+      let textoFiltrado = texto;
+      if (texto.startsWith("🎙️ [MENSAJE DE VOZ]") || texto.startsWith("📸 [IMAGEN]") || texto.startsWith("El usuario envió est")) {
+        textoFiltrado = "";
+      }
+      
       const textoLimpio = esAdmin ? textoFiltrado.replace("[Admin]: ", "") : textoFiltrado;
 
       let contenido = "";

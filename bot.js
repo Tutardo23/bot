@@ -45,7 +45,8 @@ function buildParts(text, mediaData) {
   if (!mediaData) return [{ text: text || "" }];
   const mime = mediaData.mimeType.split(";")[0].trim();
   return [
-    { text: mime.startsWith("audio/") ? "El usuario envió este audio:" : "El usuario envió esta imagen:" },
+    // 🔥 FIX AUDIO Y FOTO: Orden directa a la IA según el tipo de archivo
+    { text: mime.startsWith("audio/") ? "🎙️ [MENSAJE DE VOZ]: Escucha atentamente este audio y responde directamente a lo que el usuario te dice o pregunta de forma natural:" : "📸 [IMAGEN]: Analiza esta imagen y responde en contexto:" },
     { inlineData: { mimeType: mime, data: mediaData.base64 } },
     ...(text?.trim() ? [{ text }] : [])
   ];
@@ -126,7 +127,8 @@ REGLAS DE COMPORTAMIENTO:
 4. Párrafos cortos y completos.
 5. Temas ajenos a los colegios: decí que solo sabés de estas instituciones.
 6. **MULTIMODALIDAD ACTIVA (IMÁGENES Y AUDIOS) — REGLA CRÍTICA:** Eres una IA multimodal avanzada. Puedes ver imágenes (capturas de pantalla de errores, fotos de uniformes, transferencias, etc.) y escuchar audios perfectamente. No pretendas que eres solo texto.
-   * **Uso Diagnóstico:** Si un usuario tiene un problema técnico (Colegium, Google) y no está claro el error, **PIDE ACTIVAMENTE** una captura de pantalla. Analizala para guiar al usuario.
+   * **Uso Diagnóstico (Imágenes):** Si un usuario tiene un problema técnico (Colegium, Google) y no está claro el error, **PIDE ACTIVAMENTE** una captura de pantalla. Analizala para guiar al usuario.
+   * **Uso de Audios:** Si recibes un MENSAJE DE VOZ (audio), escúchalo atentamente y responde de forma natural como si estuvieras charlando. NO digas "en el audio dijiste...", simplemente responde a la consulta.
 7. DETECCIÓN DE DATOS — Extraé la info y agregala al FINAL de tu respuesta (invisible) en este formato exacto JSON:
    |||CONTACTO:{"nombre":"Juan Pérez","dni":"12345678","colegio":"Los Cerros","curso":"3er grado","hijos":["Lucas"]}|||
    Escribí el JSON crudo, en una sola línea. NO uses markdown ni backticks.
@@ -168,7 +170,8 @@ Escribí tu consulta 👇
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       systemInstruction: { role: "system", parts: [{ text: prompt }] },
-      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+      // 🔥 FIX TOKENS: Límite subido a 4096
+      generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
     });
 
     const chat = model.startChat({ history: limpiarHistorial(session.history || []) });
@@ -209,9 +212,11 @@ Escribí tu consulta 👇
     const rawHistory = await chat.getHistory();
     session.history = rawHistory
       .map((msg, idx) => {
-        const textoBase = limpiarAsteriscos(
-          msg.parts.map(p => p.text || "").filter(Boolean).join(" ")
-        );
+        // 🔥 FIX PANEL: Limpiamos el texto base del JSON antes de guardarlo para que el panel se vea limpio
+        let textoBase = msg.parts.map(p => p.text || "").filter(Boolean).join(" ");
+        textoBase = textoBase.replace(/\|\|\|CONTACTO:.*?\|\|\|/s, "").trim();
+        textoBase = limpiarAsteriscos(textoBase);
+
         const esUltimoUser = msg.role === "user" && idx === rawHistory.length - 2;
         if (esUltimoUser && mediaKey) {
           return {
