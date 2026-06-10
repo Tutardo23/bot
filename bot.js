@@ -185,7 +185,7 @@ Escribí tu consulta 👇
 
   try {
     const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
       systemInstruction: { role: "system", parts: [{ text: prompt }] },
       // 🔥 FIX TOKENS: Límite subido a 4096
       generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },

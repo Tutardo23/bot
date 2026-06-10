@@ -41,6 +41,7 @@ const apiLimiter = rateLimit({
 
 app.use(cookieParser());
 app.use(express.json());
+app.use(express.static(path.join(process.cwd(), "public"), { extensions: ["html"] }));
 
 // 🔥 EL LECTOR ANTIBALAS DE ADMIN.HTML 🔥
 app.get("/admin.html", (req, res) => {
@@ -212,6 +213,38 @@ app.post("/api/reactivar", authMiddleware, apiLimiter, async (req, res) => {
 
   await sendMessage(telefono, "¡Hola de nuevo! 👋 Ya podés seguir escribiéndome. Soy Pucarito 🏫");
   res.json({ ok: true });
+});
+
+
+// Ruta simple para probar el bot desde public/test-chat.html
+app.post("/api/chat", apiLimiter, async (req, res) => {
+  try {
+    const message = String(req.body?.message || "").trim();
+
+    if (!message) {
+      return res.status(400).json({
+        ok: false,
+        error: "Mensaje vacío",
+      });
+    }
+
+    const respuesta = await handleTestMessage({
+      from: "usuario_local_browser",
+      type: "text",
+      text: { body: message },
+    });
+
+    return res.json({
+      ok: true,
+      reply: respuesta ?? "🤫 El bot está en silencio (Modo Humano).",
+    });
+  } catch (error) {
+    console.error("🔥 Error en /api/chat:", error);
+    return res.status(500).json({
+      ok: false,
+      error: "Error en el servidor.",
+    });
+  }
 });
 
 app.post("/chat-local", async (req, res) => {
