@@ -185,14 +185,14 @@ Escribí tu consulta 👇
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
       systemInstruction: { role: "system", parts: [{ text: prompt }] },
       // 🔥 FIX TOKENS: Límite subido a 4096
       generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
     });
 
     const chat = model.startChat({ history: limpiarHistorial(session.history || []) });
-    const result = await chat.sendMessage(buildParts(text, mediaData));
+    const result = await sendGeminiWithRetry(chat, buildParts(text, mediaData));
     let botResponse = result.response.text().trim();
 
     // ── Extraer y guardar datos de contacto ──
@@ -252,4 +252,43 @@ Escribí tu consulta 👇
     console.error("❌ Error en el bot:", error);
     return "Tuve un pequeño micro-corte técnico. ¿Podrías escribirlo de nuevo? 😅";
   }
+}
+
+async function sendGeminiWithRetry(chat, parts) {
+  const delays = [800, 1600, 3200];
+  let lastError = null;
+
+  for (let intento = 0; intento <= delays.length; intento++) {
+    try {
+      return await chat.sendMessage(parts);
+    } catch (error) {
+      lastError = error;
+
+      const status = Number(error?.status || 0);
+      const message = String(error?.message || "");
+
+      const retryable =
+        status === 429 ||
+        status === 500 ||
+        status === 502 ||
+        status === 503 ||
+        status === 504 ||
+        message.includes("high demand") ||
+        message.includes("overloaded") ||
+        message.includes("Service Unavailable");
+
+      if (!retryable || intento === delays.length) {
+        throw error;
+      }
+
+      console.warn(`⚠️ Gemini saturado o temporalmente caído. Reintento ${intento + 1}/${delays.length} en ${delays[intento]}ms...`);
+      await sleep(delays[intento]);
+    }
+  }
+
+  throw lastError;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

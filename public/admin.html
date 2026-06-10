@@ -1,688 +1,1199 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Panel Admin — Red de Colegios</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Panel Admin — Bot Red de Colegios</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; }
+    * { margin: 0; padding: 0; }
+
     :root {
-      --bg: #0f1117; --surface: #1a1d27; --surface2: #222536;
-      --border: #2e3348; --accent: #4f6ef7; --accent-h: #3d5ae8;
-      --green: #22c55e; --red: #ef4444; --yellow: #f59e0b; --blue: #38bdf8;
-      --text: #e8eaf0; --muted: #6b7280;
-      --bubble-admin: #1e3a5f; --bubble-user: #1e2535; --bubble-bot: #1e2a1e;
+      --bg: #080b12;
+      --bg-soft: #0c111d;
+      --surface: rgba(18, 24, 38, .86);
+      --surface-solid: #121826;
+      --surface-2: rgba(27, 35, 55, .86);
+      --surface-3: #202a42;
+      --border: rgba(148, 163, 184, .16);
+      --border-strong: rgba(148, 163, 184, .28);
+      --text: #eef4ff;
+      --muted: #91a0b7;
+      --muted-2: #64748b;
+      --accent: #7c8cff;
+      --accent-2: #4f46e5;
+      --accent-soft: rgba(124, 140, 255, .14);
+      --green: #22c55e;
+      --green-soft: rgba(34, 197, 94, .14);
+      --red: #fb7185;
+      --red-soft: rgba(251, 113, 133, .13);
+      --blue: #38bdf8;
+      --blue-soft: rgba(56, 189, 248, .13);
+      --yellow: #f59e0b;
+      --yellow-soft: rgba(245, 158, 11, .13);
+      --shadow: 0 24px 80px rgba(0, 0, 0, .34);
+      --radius: 22px;
+      --radius-sm: 14px;
+      --sidebar: 360px;
+      --details: 340px;
     }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
-    /* ── LOGIN ── */
-    #login-screen { flex:1; display:flex; align-items:center; justify-content:center; }
-    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px 48px; width:100%; max-width:400px; display:flex; flex-direction:column; gap:20px; }
-    .logo { text-align:center; font-size:32px; font-weight:800; letter-spacing:-1px; }
-    .logo span { color:var(--accent); }
-    .subtitle { text-align:center; color:var(--muted); font-size:14px; }
-    input[type=password] { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; color:var(--text); font-size:15px; outline:none; transition:border-color .2s; }
-    input[type=password]:focus { border-color:var(--accent); }
-    .error-msg { background:#2d1515; border:1px solid var(--red); border-radius:8px; padding:10px 14px; font-size:13px; color:var(--red); display:none; }
+    html, body { height: 100%; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(124, 140, 255, .22), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(56, 189, 248, .12), transparent 32%),
+        var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      overflow: hidden;
+    }
 
-    /* ── APP ── */
-    #app { flex:1; display:none; flex-direction:column; overflow:hidden; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
 
-    /* ── HEADER ── */
-    .header { height:56px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 20px; flex-shrink:0; }
-    .header-title { font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; }
-    .dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-    .header-badges { display:flex; align-items:center; gap:8px; }
-    .badge { border-radius:12px; padding:2px 8px; font-size:12px; font-weight:700; }
-    .badge-red { background:var(--red); }
-    .badge-blue { background:var(--blue); color:#000; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
 
-    /* ── LAYOUT PRINCIPAL: 3 columnas ── */
-    .main { flex:1; display:grid; grid-template-columns:260px 260px 1fr; overflow:hidden; }
-    @media(max-width:900px) { .main { grid-template-columns:200px 200px 1fr; } }
-    @media(max-width:650px) { .main { grid-template-columns:1fr; } }
+    .login-screen {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+    }
 
-    /* ── COLUMNAS LISTAS ── */
-    .col { display:flex; flex-direction:column; overflow:hidden; border-right:1px solid var(--border); }
-    .col-hdr { padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-    .col-hdr-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); display:flex; align-items:center; gap:6px; }
-    .col-hdr-title .indicator { width:6px; height:6px; border-radius:50%; }
-    .ind-red { background:var(--red); }
-    .ind-blue { background:var(--blue); }
-    .conv-list { flex:1; overflow-y:auto; }
+    .login-card {
+      width: min(460px, 100%);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(18, 24, 38, .92), rgba(12, 17, 29, .88));
+      backdrop-filter: blur(22px);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+      padding: 32px;
+      display: grid;
+      gap: 18px;
+    }
 
-    .conv-item { padding:12px 14px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .15s; }
-    .conv-item:hover { background:var(--surface2); }
-    .conv-item.active { background:var(--surface2); }
-    .conv-item.active.handover { border-left:3px solid var(--red); }
-    .conv-item.active.activa { border-left:3px solid var(--blue); }
-    .conv-phone { font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
-    .conv-preview { font-size:11px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .conv-meta { font-size:10px; color:var(--muted); margin-top:3px; }
-    .conv-sub { font-size:10px; color:var(--muted); margin-top:1px; }
-    .ndot { width:7px; height:7px; border-radius:50%; }
-    .ndot-red { background:var(--red); }
-    .ndot-blue { background:var(--blue); }
+    .login-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      box-shadow: 0 18px 42px rgba(124, 140, 255, .22);
+      font-size: 25px;
+    }
 
-    .empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--muted); padding:24px 12px; text-align:center; height:100%; }
-    .empty-icon { font-size:32px; }
-    .empty p { font-size:12px; }
+    .brand { display: grid; gap: 8px; }
+    .brand h1 { font-size: clamp(30px, 6vw, 42px); letter-spacing: -.05em; line-height: 1; }
+    .brand h1 span { color: var(--accent); }
+    .brand p { color: var(--muted); line-height: 1.45; }
 
-    /* ── CHAT AREA ── */
-    .chat { display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
-    .placeholder { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--muted); }
-    .placeholder-icon { font-size:48px; }
+    .field { display: grid; gap: 8px; }
+    .label { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+    .input, .textarea, .select {
+      width: 100%;
+      color: var(--text);
+      background: rgba(15, 23, 42, .86);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .textarea { min-height: 110px; resize: vertical; line-height: 1.45; }
+    .input:focus, .textarea:focus, .select:focus {
+      border-color: rgba(124, 140, 255, .72);
+      box-shadow: 0 0 0 4px rgba(124, 140, 255, .12);
+      background: rgba(15, 23, 42, .96);
+    }
 
-    .chat-hdr { height:56px; background:var(--surface); border-bottom:1px solid var(--border); align-items:center; justify-content:space-between; padding:0 20px; flex-shrink:0; display:none; }
-    .chat-hdr.show { display:flex; }
-    .chat-phone { font-weight:700; font-size:15px; }
-    .chat-status { font-size:12px; }
-    .status-handover { color:var(--red); }
-    .status-activa { color:var(--blue); }
+    .error-box {
+      display: none;
+      color: #fecdd3;
+      background: rgba(127, 29, 29, .26);
+      border: 1px solid rgba(251, 113, 133, .36);
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
 
-    .messages { flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:8px; }
-    .msg { max-width:78%; display:flex; flex-direction:column; gap:3px; }
-    .msg.user { align-self:flex-start; }
-    .msg.model, .msg.admin { align-self:flex-end; }
-    .bubble { padding:9px 13px; border-radius:14px; font-size:13px; line-height:1.5; white-space:pre-wrap; }
-    .msg.user .bubble { background:var(--bubble-user); border-bottom-left-radius:4px; }
-    .msg.model .bubble { background:var(--bubble-bot); border:1px solid var(--border); border-bottom-right-radius:4px; }
-    .msg.admin .bubble { background:var(--bubble-admin); border-bottom-right-radius:4px; }
-    .msg-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:0 4px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:8px; }
-    .msg-ts { font-size:10px; color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0; white-space:nowrap; }
+    .btn {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text);
+      background: rgba(30, 41, 59, .8);
+      font-weight: 800;
+      transition: transform .16s ease, border-color .16s ease, background .16s ease, opacity .16s ease;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--border-strong); background: rgba(39, 51, 76, .9); }
+    .btn:active:not(:disabled) { transform: scale(.985); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: white; }
+    .btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #8b97ff, #5b54ef); }
+    .btn-success { background: rgba(34, 197, 94, .15); border-color: rgba(34, 197, 94, .32); color: #bbf7d0; }
+    .btn-danger { background: rgba(251, 113, 133, .10); border-color: rgba(251, 113, 133, .32); color: #fecdd3; }
+    .btn-ghost { background: transparent; }
+    .btn-small { min-height: 34px; padding: 7px 11px; font-size: 12px; border-radius: 12px; }
+    .btn-icon { width: 40px; padding: 0; }
 
-    /* ── QUICK REPLIES Y REPLY BAR ── */
-    .reply-container { background:var(--surface); border-top:1px solid var(--border); display:none; flex-direction:column; }
-    .reply-container.show { display:flex; }
-    .quick-replies { display:flex; gap:8px; padding:10px 16px; overflow-x:auto; background:var(--surface2); border-bottom:1px solid var(--border); }
-    .quick-replies::-webkit-scrollbar { height: 4px; }
-    .reply { padding:12px 16px; display:flex; flex-direction:column; gap:8px; }
-    .reply-row { display:flex; gap:8px; align-items:flex-end; }
-    textarea { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:10px 14px; color:var(--text); font-size:14px; resize:none; max-height:100px; outline:none; font-family:inherit; transition:border-color .2s; }
-    textarea:focus { border-color:var(--accent); }
-    .hint { font-size:11px; color:var(--muted); }
+    .app {
+      display: none;
+      height: 100dvh;
+      grid-template-rows: 72px 1fr;
+    }
 
-    /* ── BOTONES ── */
-    .btn { display:inline-flex; align-items:center; gap:5px; padding:8px 14px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all .15s; white-space:nowrap; }
-    .btn:disabled { opacity:.5; cursor:not-allowed; }
-    .btn:active:not(:disabled) { transform:scale(.97); }
-    .btn-primary { background:var(--accent); color:#fff; }
-    .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
-    .btn-success { background:var(--green); color:#fff; }
-    .btn-success:hover:not(:disabled) { filter:brightness(1.1); }
-    .btn-ghost { background:var(--surface); color:var(--text); border:1px solid var(--border); font-weight: 500; }
-    .btn-ghost:hover { background:var(--surface2); border-color:var(--accent); }
-    .btn-watch { background:transparent; color:var(--blue); border:1px solid var(--blue); }
-    .btn-watch:hover { background:rgba(56,189,248,.1); }
+    .topbar {
+      height: 72px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8, 11, 18, .76);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 16px;
+      z-index: 10;
+    }
 
-    /* ── TOAST ── */
-    #toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:11px 16px; font-size:13px; transform:translateY(80px); opacity:0; transition:all .3s; z-index:999; pointer-events:none; }
-    #toast.show { transform:translateY(0); opacity:1; }
-    #toast.ok { border-color:var(--green); }
-    #toast.err { border-color:var(--red); }
+    .top-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .logo-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      box-shadow: 0 12px 26px rgba(124, 140, 255, .18);
+      flex: 0 0 auto;
+    }
+    .top-title h2 { font-size: 16px; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top-title p { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .live-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 0 6px rgba(34, 197, 94, .12);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse { 50% { opacity: .45; transform: scale(.82); } }
 
-    ::-webkit-scrollbar { width:4px; }
-    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+    .counter-group { display: flex; gap: 8px; }
+    .pill {
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, .78);
+      color: var(--muted);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+    .pill-red { color: #fecdd3; background: var(--red-soft); border-color: rgba(251, 113, 133, .24); }
+    .pill-blue { color: #bae6fd; background: var(--blue-soft); border-color: rgba(56, 189, 248, .24); }
+    .pill-green { color: #bbf7d0; background: var(--green-soft); border-color: rgba(34, 197, 94, .24); }
+    .pill-yellow { color: #fde68a; background: var(--yellow-soft); border-color: rgba(245, 158, 11, .24); }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--details);
+    }
+
+    .sidebar, .details-panel {
+      min-height: 0;
+      background: rgba(12, 17, 29, .74);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .details-panel { border-left: 1px solid var(--border); border-right: 0; }
+
+    .panel-head { padding: 16px; border-bottom: 1px solid var(--border); display: grid; gap: 12px; }
+    .panel-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .panel-title strong { font-size: 13px; text-transform: uppercase; color: var(--muted); letter-spacing: .08em; }
+    .search-wrap { position: relative; }
+    .search-wrap .input { padding-left: 38px; min-height: 42px; }
+    .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted-2); }
+
+    .segment {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .seg-btn {
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, .7);
+      color: var(--muted);
+      padding: 9px 10px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .seg-btn.active { background: var(--accent-soft); color: white; border-color: rgba(124, 140, 255, .36); }
+
+    .conversation-list { overflow: auto; padding: 10px; display: grid; gap: 8px; }
+    .conv-card {
+      border: 1px solid transparent;
+      border-radius: 18px;
+      padding: 13px;
+      background: rgba(15, 23, 42, .54);
+      transition: border-color .16s ease, background .16s ease, transform .16s ease;
+      cursor: pointer;
+      display: grid;
+      gap: 8px;
+      text-align: left;
+      color: inherit;
+    }
+    .conv-card:hover { border-color: var(--border-strong); background: rgba(30, 41, 59, .76); transform: translateY(-1px); }
+    .conv-card.active { border-color: rgba(124, 140, 255, .52); background: rgba(124, 140, 255, .12); }
+    .conv-card.handover { box-shadow: inset 3px 0 0 rgba(251, 113, 133, .85); }
+    .conv-card.activa { box-shadow: inset 3px 0 0 rgba(56, 189, 248, .85); }
+    .conv-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .conv-name { font-weight: 950; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .conv-preview { color: var(--muted); font-size: 12px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .conv-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+    .mini-pill { font-size: 10.5px; border-radius: 999px; padding: 4px 7px; background: rgba(30, 41, 59, .82); color: var(--muted); border: 1px solid var(--border); font-weight: 800; }
+
+    .chat-shell {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 78px 1fr auto;
+      background: linear-gradient(180deg, rgba(8, 11, 18, .26), rgba(8, 11, 18, .02));
+    }
+
+    .chat-header {
+      border-bottom: 1px solid var(--border);
+      background: rgba(12, 17, 29, .58);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 18px;
+      min-width: 0;
+    }
+    .chat-person { min-width: 0; display: flex; align-items: center; gap: 12px; }
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(124, 140, 255, .26), rgba(56, 189, 248, .18));
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      font-weight: 950;
+      flex: 0 0 auto;
+    }
+    .chat-person h3 { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-person p { margin-top: 3px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+    .mobile-back { display: none; }
+
+    .messages {
+      overflow: auto;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+    .empty-state {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      text-align: center;
+      padding: 24px;
+    }
+    .empty-card {
+      max-width: 410px;
+      border: 1px dashed var(--border-strong);
+      background: rgba(15, 23, 42, .38);
+      border-radius: 24px;
+      padding: 28px;
+      display: grid;
+      gap: 10px;
+    }
+    .empty-card .icon { font-size: 38px; }
+    .empty-card strong { color: var(--text); font-size: 17px; }
+    .empty-card p { line-height: 1.45; }
+
+    .msg { max-width: min(760px, 78%); display: grid; gap: 4px; }
+    .msg.user { align-self: flex-start; }
+    .msg.model, .msg.admin { align-self: flex-end; }
+    .msg-label { color: var(--muted-2); font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 950; padding: 0 8px; display: flex; gap: 8px; align-items: center; }
+    .msg.model .msg-label, .msg.admin .msg-label { justify-content: flex-end; }
+    .bubble {
+      border: 1px solid var(--border);
+      background: rgba(30, 41, 59, .72);
+      border-radius: 19px;
+      padding: 11px 14px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-size: 14px;
+      overflow-wrap: anywhere;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .10);
+    }
+    .msg.user .bubble { background: rgba(23, 32, 51, .92); border-bottom-left-radius: 7px; }
+    .msg.model .bubble { background: rgba(21, 39, 25, .86); border-color: rgba(34, 197, 94, .16); border-bottom-right-radius: 7px; }
+    .msg.admin .bubble { background: rgba(26, 40, 78, .9); border-color: rgba(124, 140, 255, .20); border-bottom-right-radius: 7px; }
+    .media-img { max-width: min(320px, 100%); max-height: 380px; border-radius: 16px; display: block; margin-bottom: 8px; cursor: zoom-in; border: 1px solid var(--border); }
+    audio { width: min(320px, 100%); margin-bottom: 8px; }
+
+    .reply-box {
+      display: none;
+      border-top: 1px solid var(--border);
+      background: rgba(12, 17, 29, .84);
+      backdrop-filter: blur(14px);
+      padding: 12px 16px 14px;
+      gap: 10px;
+    }
+    .reply-box.show { display: grid; }
+    .quick-replies { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+    .reply-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+    .reply-row .textarea { min-height: 48px; max-height: 140px; resize: none; }
+    .hint { color: var(--muted-2); font-size: 11.5px; line-height: 1.4; }
+
+    .details-panel { padding: 0; }
+    .details-scroll { overflow: auto; padding: 16px; display: grid; gap: 14px; }
+    .info-card {
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, .52);
+      border-radius: 20px;
+      padding: 15px;
+      display: grid;
+      gap: 12px;
+    }
+    .info-card h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .kv { display: grid; gap: 9px; }
+    .kv-row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; font-size: 13px; }
+    .kv-row span:first-child { color: var(--muted); }
+    .kv-row span:last-child { color: var(--text); overflow-wrap: anywhere; }
+
+    .config-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100dvh;
+      width: min(720px, 100%);
+      background: rgba(8, 11, 18, .96);
+      border-left: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      transform: translateX(105%);
+      transition: transform .24s ease;
+      z-index: 40;
+      display: grid;
+      grid-template-rows: 72px 1fr;
+    }
+    .config-panel.show { transform: translateX(0); }
+    .config-head { border-bottom: 1px solid var(--border); padding: 0 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .config-body { overflow: auto; padding: 18px; display: grid; gap: 14px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 30; }
+    .backdrop.show { opacity: 1; pointer-events: auto; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      border: 1px solid var(--border-strong);
+      background: rgba(15, 23, 42, .94);
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      transform: translateY(72px);
+      opacity: 0;
+      transition: transform .22s ease, opacity .22s ease;
+      z-index: 80;
+      max-width: min(420px, calc(100vw - 36px));
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.ok { border-color: rgba(34, 197, 94, .35); }
+    .toast.err { border-color: rgba(251, 113, 133, .4); }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, .18); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, .28); }
+
+    @media (max-width: 1180px) {
+      :root { --sidebar: 330px; --details: 0px; }
+      .layout { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+      .details-panel { display: none; }
+    }
+
+    @media (max-width: 820px) {
+      .app { grid-template-rows: 64px 1fr; }
+      .topbar { height: 64px; padding: 0 12px; }
+      .logo-mark { width: 38px; height: 38px; border-radius: 14px; }
+      .top-title p, .counter-group { display: none; }
+      .top-actions { gap: 6px; }
+      .top-actions .btn span.label-text { display: none; }
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: flex; }
+      .chat-shell { display: none; }
+      .layout.chat-open .sidebar { display: none; }
+      .layout.chat-open .chat-shell { display: grid; }
+      .mobile-back { display: inline-flex; }
+      .chat-header { min-height: 68px; padding: 10px 12px; }
+      .chat-person { gap: 8px; }
+      .avatar { width: 38px; height: 38px; border-radius: 14px; }
+      .chat-actions .btn:not(.mobile-back):not(#btnSendMobile) { display: none; }
+      .messages { padding: 14px 12px; }
+      .msg { max-width: 90%; }
+      .reply-box { padding: 10px 10px 12px; }
+      .reply-row { grid-template-columns: 1fr; }
+      .reply-row .btn-primary { width: 100%; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
   </style>
 </head>
 <body>
-
-<div id="login-screen">
-  <div class="login-card">
-    <div class="logo">Admin<span>.</span>Red</div>
-    <p class="subtitle">Panel de atención · Ingresá tu contraseña</p>
-    <input type="password" id="pwd" placeholder="Contraseña" autocomplete="current-password"/>
-    <div class="error-msg" id="err-login">Contraseña incorrecta. Intentá de nuevo.</div>
-    <button class="btn btn-primary" onclick="login()" style="width:100%;justify-content:center;padding:13px">Ingresar →</button>
-  </div>
-</div>
-
-<div id="app">
-
-  <div class="header">
-    <div class="header-title">
-      <div class="dot"></div>
-      Panel Admin · Red de Colegios
-    </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="header-badges">
-        <span id="badge-espera" class="badge badge-red" style="display:none">0 en espera</span>
-        <span id="badge-activas" class="badge badge-blue" style="display:none">0 activas</span>
+  <section class="login-screen" id="loginScreen" aria-label="Ingreso al panel">
+    <form class="login-card" id="loginForm">
+      <div class="login-icon" aria-hidden="true">🤖</div>
+      <div class="brand">
+        <h1>Bot<span>.</span>Red</h1>
+        <p>Panel propio para atender padres, ver conversaciones y ajustar el bot sin tocar código.</p>
       </div>
-      <button class="btn btn-ghost" onclick="logout()" style="padding:6px 12px;font-size:12px">Salir</button>
-    </div>
-  </div>
+      <label class="field">
+        <span class="label">Contraseña admin</span>
+        <input class="input" id="pwd" type="password" placeholder="Ingresá tu contraseña" autocomplete="current-password" required />
+      </label>
+      <div class="error-box" id="loginError">Contraseña incorrecta o error de conexión.</div>
+      <button class="btn btn-primary" type="submit">Ingresar al panel</button>
+    </form>
+  </section>
 
-  <div class="main">
-
-    <div class="col">
-      <div class="col-hdr">
-        <div class="col-hdr-title">
-          <div class="indicator ind-red"></div>
-          En espera
-        </div>
-        <span id="count-espera" style="font-size:11px;color:var(--muted)">0</span>
-      </div>
-      <div class="conv-list" id="list-espera">
-        <div class="empty"><div class="empty-icon">✅</div><p>Sin casos pendientes</p></div>
-      </div>
-    </div>
-
-    <div class="col">
-      <div class="col-hdr">
-        <div class="col-hdr-title">
-          <div class="indicator ind-blue"></div>
-          Con el bot
-        </div>
-        <span id="count-activas" style="font-size:11px;color:var(--muted)">0</span>
-      </div>
-      <div class="conv-list" id="list-activas">
-        <div class="empty"><div class="empty-icon">💬</div><p>Sin conversaciones activas</p></div>
-      </div>
-    </div>
-
-    <div class="chat">
-
-      <div class="placeholder" id="placeholder">
-        <div class="placeholder-icon">📋</div>
-        <p style="font-size:15px;font-weight:600">Seleccioná una conversación</p>
-        <p style="font-size:13px;color:var(--muted)">Elegí de cualquiera de las listas para ver el historial.</p>
-      </div>
-
-      <div class="chat-hdr" id="chat-hdr">
-        <div>
-          <div class="chat-phone" id="chat-phone">+54 9 381...</div>
-          <div id="chat-sub" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-          <div class="chat-status" id="chat-status" style="margin-top:4px">🟡 Esperando atención</div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-success" id="btn-react" onclick="reactivar()" style="display:none">✅ Marcar como Resuelto y Reactivar Bot</button>
-          <button class="btn" id="btn-borrar" onclick="borrarChat()" style="background:transparent;color:var(--red);border:1px solid var(--red);display:none">🗑️ Borrar</button>
+  <main class="app" id="app" aria-label="Panel de administración">
+    <header class="topbar">
+      <div class="top-title">
+        <div class="logo-mark" aria-hidden="true">🏫</div>
+        <div style="min-width:0">
+          <h2>Panel Bot · Red de Colegios</h2>
+          <p><span class="live-dot" style="display:inline-block;margin-right:8px"></span>Atención humana, bot y configuración</p>
         </div>
       </div>
 
-      <div class="messages" id="messages"></div>
-
-      <div class="reply-container" id="reply-container">
-        <div class="quick-replies">
-          <button class="btn btn-ghost" onclick="usarPlantilla('🔑 Tu contraseña ha sido blanqueada. Tu nueva clave provisoria es tu número de DNI. ¡Saludos!')">🔑 Blanqueo DNI</button>
-          <button class="btn btn-ghost" onclick="usarPlantilla('📄 Ya enviamos la constancia de alumno regular a tu correo institucional. ¡Saludos!')">📄 Constancia Enviada</button>
-          <button class="btn btn-ghost" onclick="usarPlantilla('Hola, para poder ayudarte con la cuenta necesito que me confirmes el DNI del alumno por favor.')">❓ Pedir DNI</button>
-          <button class="btn btn-ghost" onclick="usarPlantilla('Lamentablemente, como la cuenta es personal no podemos recuperarla desde acá. Vas a tener que crear una cuenta nueva en secretaría.')">❌ No se puede recuperar</button>
+      <div class="top-actions">
+        <div class="counter-group" aria-label="Contadores">
+          <span class="pill pill-red" id="badgeEspera">0 espera</span>
+          <span class="pill pill-blue" id="badgeActivas">0 bot</span>
         </div>
-        
-        <div class="reply" id="reply">
-          <div class="reply-row">
-            <textarea id="reply-input" placeholder="Escribí tu respuesta al padre/tutor..." rows="2" onkeydown="handleKey(event)"></textarea>
-            <button class="btn btn-primary" onclick="enviar()">Enviar ↑</button>
+        <button class="btn btn-small" type="button" onclick="openConfig()">⚙️ <span class="label-text">Configurar</span></button>
+        <button class="btn btn-small btn-ghost" type="button" onclick="logout()">Salir</button>
+      </div>
+    </header>
+
+    <section class="layout" id="layout">
+      <aside class="sidebar" aria-label="Lista de conversaciones">
+        <div class="panel-head">
+          <div class="panel-title">
+            <strong>Conversaciones</strong>
+            <button class="btn btn-small btn-ghost" type="button" onclick="loadAll()">Actualizar</button>
           </div>
-          <div class="hint">Shift+Enter para enviar · Enter para nueva línea</div>
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <label class="sr-only" for="searchInput">Buscar conversación</label>
+            <input class="input" id="searchInput" type="search" placeholder="Buscar por nombre, teléfono, colegio..." />
+          </div>
+          <div class="segment" role="tablist" aria-label="Filtro de conversaciones">
+            <button class="seg-btn active" id="tabHandover" type="button" onclick="setTab('handover')">🔴 En espera <span id="countEspera">0</span></button>
+            <button class="seg-btn" id="tabActiva" type="button" onclick="setTab('activa')">🔵 Con bot <span id="countActivas">0</span></button>
+          </div>
         </div>
+        <div class="conversation-list" id="conversationList"></div>
+      </aside>
+
+      <section class="chat-shell" aria-label="Chat seleccionado">
+        <header class="chat-header">
+          <div class="chat-person">
+            <button class="btn btn-small btn-icon mobile-back" type="button" onclick="backToList()" aria-label="Volver">←</button>
+            <div class="avatar" id="avatar">?</div>
+            <div style="min-width:0">
+              <h3 id="chatName">Seleccioná una conversación</h3>
+              <p id="chatSub">El historial aparece acá.</p>
+            </div>
+          </div>
+          <div class="chat-actions">
+            <button class="btn btn-small" id="btnAssign" type="button" onclick="assignCase()" style="display:none">Tomar caso</button>
+            <button class="btn btn-small btn-success" id="btnReact" type="button" onclick="reactivateBot()" style="display:none">Resolver y reactivar</button>
+            <button class="btn btn-small btn-danger" id="btnDelete" type="button" onclick="deleteChat()" style="display:none">Borrar</button>
+          </div>
+        </header>
+
+        <div class="messages" id="messages">
+          <div class="empty-state">
+            <div class="empty-card">
+              <div class="icon">📋</div>
+              <strong>Seleccioná una conversación</strong>
+              <p>Elegí un caso de la lista para ver el historial, responder o reactivar el bot.</p>
+            </div>
+          </div>
+        </div>
+
+        <form class="reply-box" id="replyBox">
+          <div class="quick-replies" aria-label="Respuestas rápidas">
+            <button class="btn btn-small" type="button" onclick="useTemplate('🔑 Tu contraseña fue blanqueada. Probá ingresar con tu DNI como clave provisoria. Cualquier cosa, avisame por acá.')">🔑 Blanqueo DNI</button>
+            <button class="btn btn-small" type="button" onclick="useTemplate('📄 Ya enviamos la constancia de alumno regular al correo registrado. ¡Gracias!')">📄 Constancia</button>
+            <button class="btn btn-small" type="button" onclick="useTemplate('Para poder ayudarte mejor necesito que me confirmes: nombre completo, DNI, colegio y curso del alumno.')">❓ Pedir datos</button>
+            <button class="btn btn-small" type="button" onclick="useTemplate('Estoy revisando tu caso. Te aviso por este mismo medio apenas tenga la confirmación.')">⏳ Revisando</button>
+          </div>
+          <div class="reply-row">
+            <label class="sr-only" for="replyInput">Respuesta al padre o tutor</label>
+            <textarea class="textarea" id="replyInput" placeholder="Escribí la respuesta humana al padre/tutor..." rows="2"></textarea>
+            <button class="btn btn-primary" type="submit" id="sendBtn">Enviar respuesta</button>
+          </div>
+          <p class="hint">Enter para enviar · Shift + Enter para nueva línea. La respuesta queda guardada y se envía por la ruta /api/responder.</p>
+        </form>
+      </section>
+
+      <aside class="details-panel" aria-label="Detalles del contacto">
+        <div class="panel-head">
+          <div class="panel-title"><strong>Detalle</strong><span class="pill" id="detailStatus">Sin selección</span></div>
+        </div>
+        <div class="details-scroll">
+          <div class="info-card">
+            <h4>Contacto</h4>
+            <div class="kv" id="contactDetails">
+              <div class="kv-row"><span>Estado</span><span>Elegí una conversación.</span></div>
+            </div>
+          </div>
+          <div class="info-card">
+            <h4>Atajos</h4>
+            <button class="btn" type="button" onclick="useTemplate('¡Claro! Ya lo reviso y te respondo por acá.')">Respuesta amable</button>
+            <button class="btn" type="button" onclick="useTemplate('¿Me podés mandar una captura de pantalla del error para verlo mejor?')">Pedir captura</button>
+            <button class="btn" type="button" onclick="useTemplate('Te confirmo que el caso quedó derivado al equipo correspondiente.')">Confirmar derivación</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <div class="backdrop" id="backdrop" onclick="closeConfig()"></div>
+  <aside class="config-panel" id="configPanel" aria-label="Configuración del bot" aria-hidden="true">
+    <header class="config-head">
+      <div>
+        <h3>Configurar bot</h3>
+        <p class="hint">Ajustes para próximas respuestas.</p>
       </div>
+      <button class="btn btn-small btn-ghost" type="button" onclick="closeConfig()">Cerrar</button>
+    </header>
+    <form class="config-body" id="configForm">
+      <div class="form-grid">
+        <label class="field"><span class="label">Nombre del bot</span><input class="input" id="cfgBotName" /></label>
+        <label class="field"><span class="label">Modelo</span><input class="input" id="cfgModel" placeholder="gemini-2.5-flash" /></label>
+      </div>
+      <label class="field"><span class="label">Colegios separados por coma</span><input class="input" id="cfgColegios" /></label>
+      <label class="field"><span class="label">Tono del bot</span><input class="input" id="cfgTono" placeholder="cálido, claro y humano" /></label>
+      <div class="form-grid">
+        <label class="field"><span class="label">Temperatura</span><input class="input" id="cfgTemperature" type="number" min="0" max="1" step="0.1" /></label>
+        <label class="field"><span class="label">Tokens máximos</span><input class="input" id="cfgTokens" type="number" min="256" max="8192" step="256" /></label>
+      </div>
+      <label class="field"><span class="label">Reactivar handover después de minutos</span><input class="input" id="cfgReset" type="number" min="5" step="5" /></label>
+      <label class="field"><span class="label">Menú inicial</span><textarea class="textarea" id="cfgMenu" style="min-height:150px"></textarea></label>
+      <label class="field"><span class="label">Mensaje de derivación</span><textarea class="textarea" id="cfgDerivacion"></textarea></label>
+      <label class="field"><span class="label">Base de conocimiento</span><textarea class="textarea" id="cfgBase" style="min-height:320px"></textarea></label>
+      <button class="btn btn-primary" type="submit">Guardar configuración</button>
+    </form>
+  </aside>
 
-    </div>
-  </div>
-</div>
-
-<div id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-  let espera = {};    
-  let activas = {};   
-  let tel = null;     
-  let tipoActivo = null; 
+  let csrf = null;
+  let conversations = { espera: [], activas: [] };
+  let selectedPhone = null;
+  let selectedType = null;
+  let activeTab = 'handover';
   let pollInterval = null;
-  let isLogged = false;
-  const blobCache = {}; 
+  const mediaCache = new Map();
 
-  /* ── INIT ──────────────────────────────── */
-  window.addEventListener("DOMContentLoaded", async () => {
-    document.getElementById("pwd").addEventListener("keydown", e => {
-      if (e.key === "Enter") login();
+  const $ = (id) => document.getElementById(id);
+
+  window.addEventListener('DOMContentLoaded', () => {
+    $('loginForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      login();
     });
-    try {
-      const r = await fetch("/api/conversaciones", { credentials: "include" });
-      if (r.ok) iniciar();
-    } catch {}
+
+    $('replyBox').addEventListener('submit', (event) => {
+      event.preventDefault();
+      sendReply();
+    });
+
+    $('replyInput').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendReply();
+      }
+    });
+
+    $('configForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      saveConfig();
+    });
+
+    $('searchInput').addEventListener('input', renderConversationList);
+    tryRestoreSession();
   });
 
-  /* ── AUTH ──────────────────────────────── */
-  async function login() {
-    const pwd = document.getElementById("pwd").value;
-    const err = document.getElementById("err-login");
-    err.style.display = "none";
+  function getCookie(name) {
+    return document.cookie.split('; ').find((item) => item.startsWith(name + '='))?.split('=')[1] || null;
+  }
+
+  async function api(url, options = {}) {
+    const method = String(options.method || 'GET').toUpperCase();
+    const headers = { ...(options.headers || {}) };
+
+    if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    if (!csrf) csrf = getCookie('csrf_token');
+    if (csrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) headers['x-csrf-token'] = csrf;
+
+    const response = await fetch(url, { ...options, method, headers, credentials: 'include' });
+    if (response.status === 401) {
+      stopPolling();
+      showLogin();
+    }
+    return response;
+  }
+
+  async function tryRestoreSession() {
     try {
-      const r = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pwd }),
-        credentials: "include",
+      const response = await fetch('/api/me', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json().catch(() => ({}));
+        csrf = data.csrf || getCookie('csrf_token');
+        startApp();
+        return;
+      }
+    } catch {}
+
+    try {
+      const response = await fetch('/api/conversaciones', { credentials: 'include' });
+      if (response.ok) startApp();
+    } catch {}
+  }
+
+  async function login() {
+    $('loginError').style.display = 'none';
+    const password = $('pwd').value;
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password })
       });
-      if (!r.ok) { err.style.display = "block"; return; }
-      iniciar();
-    } catch(e) {
-      err.textContent = "Error de conexión con el servidor.";
-      err.style.display = "block";
+
+      if (!response.ok) {
+        $('loginError').style.display = 'block';
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      csrf = data.csrf || getCookie('csrf_token');
+      startApp();
+    } catch {
+      $('loginError').textContent = 'No pude conectar con el servidor.';
+      $('loginError').style.display = 'block';
     }
   }
 
   async function logout() {
-    await fetch("/api/logout", { method: "POST", credentials: "include" });
-    clearInterval(pollInterval);
+    try { await api('/api/logout', { method: 'POST' }); } catch {}
+    stopPolling();
     location.reload();
   }
 
-  /* ── PANEL ──────────────────────────────── */
-  function iniciar() {
-    isLogged = true;
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("app").style.display = "flex";
-    cargar();
-    pollInterval = setInterval(cargar, 3000);
+  function startApp() {
+    $('loginScreen').style.display = 'none';
+    $('app').style.display = 'grid';
+    loadAll();
+    loadConfig();
+    stopPolling();
+    pollInterval = setInterval(loadAll, 3000);
   }
 
-  /* ── POLLING ──────────────────────────────── */
-  async function cargar() {
+  function showLogin() {
+    $('app').style.display = 'none';
+    $('loginScreen').style.display = 'grid';
+  }
+
+  function stopPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = null;
+  }
+
+  async function loadAll() {
     try {
-      const [r1, r2] = await Promise.all([
-        fetch("/api/conversaciones", { credentials: "include" }),
-        fetch("/api/activas", { credentials: "include" }),
-      ]);
-      if (r1.status === 401) { clearInterval(pollInterval); location.reload(); return; }
+      const response = await api('/api/conversaciones');
+      if (!response.ok) return;
+      const payload = await response.json();
 
-      const [listaEspera, listaActivas] = await Promise.all([r1.json(), r2.json()]);
-
-      listaEspera.forEach(c => {
-        if (!espera[c.telefono]) {
-          notificar(`🔴 Nuevo caso en espera: +${c.telefono}`);
-        }
-      });
-
-      const nuevoEspera = {};
-      listaEspera.forEach(c => {
-        nuevoEspera[c.telefono] = espera[c.telefono]
-          ? { ...espera[c.telefono], ...c }
-          : c;
-      });
-
-      const nuevoActivas = {};
-      listaActivas.forEach(c => {
-        nuevoActivas[c.telefono] = activas[c.telefono]
-          ? { ...activas[c.telefono], ...c }
-          : c;
-      });
-
-      if (tel) {
-        const yaNoEstaEnEspera = tipoActivo === "handover" && !nuevoEspera[tel];
-        const yaNoEstaEnActivas = tipoActivo === "activa" && !nuevoActivas[tel];
-        if (yaNoEstaEnEspera || yaNoEstaEnActivas) cerrarChat();
+      if (Array.isArray(payload)) {
+        conversations.espera = payload;
+        const activeResponse = await api('/api/activas');
+        conversations.activas = activeResponse.ok ? await activeResponse.json() : [];
+      } else {
+        conversations.espera = payload.espera || payload.handover || [];
+        conversations.activas = payload.activas || payload.active || [];
       }
 
-      espera = nuevoEspera;
-      activas = nuevoActivas;
-
-      renderListas();
-      if (tel) {
-        const conv = tipoActivo === "handover" ? espera[tel] : activas[tel];
-        if (conv) renderMensajes(conv);  
-      }
-
+      sortConversations();
+      renderCounters();
+      renderConversationList();
+      renderSelectedIfAny();
     } catch {}
   }
 
-  /* ── RENDER LISTAS ──────────────────────── */
-  function renderListas() {
-    const totalEspera = Object.keys(espera).length;
-    const totalActivas = Object.keys(activas).length;
-
-    const be = document.getElementById("badge-espera");
-    const ba = document.getElementById("badge-activas");
-    be.textContent = `${totalEspera} en espera`;
-    be.style.display = totalEspera > 0 ? "inline" : "none";
-    ba.textContent = `${totalActivas} activas`;
-    ba.style.display = totalActivas > 0 ? "inline" : "none";
-
-    document.getElementById("count-espera").textContent = totalEspera;
-    document.getElementById("count-activas").textContent = totalActivas;
-
-    const elEspera = document.getElementById("list-espera");
-    if (totalEspera === 0) {
-      elEspera.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><p>Sin casos pendientes</p></div>`;
-    } else {
-      elEspera.innerHTML = Object.values(espera)
-        .sort((a, b) => b.lastSeen - a.lastSeen)
-        .map(c => `
-          <div class="conv-item handover ${tel === c.telefono && tipoActivo === 'handover' ? 'active handover' : ''}"
-               onclick="abrirConv('${esc(c.telefono)}','handover')">
-            <div class="conv-phone">
-              <span>📱 ${c.nombre ? esc(c.nombre) : '+' + esc(c.telefono)}</span>
-              <span class="ndot ndot-red"></span>
-            </div>
-            ${c.nombre ? `<div class="conv-sub">+${esc(c.telefono)}${c.hijos?.length ? ' · 👦 ' + esc(c.hijos.join(', ')) : ''}</div>` : ''}
-            <div class="conv-preview">${esc(c.ultimoMensaje || "(sin mensajes)")}</div>
-            <div class="conv-meta">⏱ ${tiempo(c.lastSeen)} · 💬 ${c.turns || 0} turnos</div>
-          </div>`).join("");
-    }
-
-    const elActivas = document.getElementById("list-activas");
-    if (totalActivas === 0) {
-      elActivas.innerHTML = `<div class="empty"><div class="empty-icon">💬</div><p>Sin conversaciones activas</p></div>`;
-    } else {
-      elActivas.innerHTML = Object.values(activas)
-        .sort((a, b) => b.lastSeen - a.lastSeen)
-        .map(c => `
-          <div class="conv-item activa ${tel === c.telefono && tipoActivo === 'activa' ? 'active activa' : ''}"
-               onclick="abrirConv('${esc(c.telefono)}','activa')">
-            <div class="conv-phone">
-              <span>🤖 ${c.nombre ? esc(c.nombre) : '+' + esc(c.telefono)}</span>
-              <span class="ndot ndot-blue"></span>
-            </div>
-            ${c.nombre ? `<div class="conv-sub">+${esc(c.telefono)}${c.hijos?.length ? ' · 👦 ' + esc(c.hijos.join(', ')) : ''}</div>` : ''}
-            <div class="conv-preview">${esc(c.ultimoMensaje || "(sin mensajes)")}</div>
-            <div class="conv-meta">⏱ ${tiempo(c.lastSeen)} · 💬 ${c.turns || 0} turnos</div>
-          </div>`).join("");
-    }
+  function sortConversations() {
+    conversations.espera.sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0));
+    conversations.activas.sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0));
   }
 
-  /* ── ABRIR CONVERSACIÓN ─────────────────── */
-  function abrirConv(telefono, tipo) {
-    tel = telefono;
-    tipoActivo = tipo;
-
-    renderListas();
-
-    document.getElementById("placeholder").style.display = "none";
-    document.getElementById("chat-hdr").classList.add("show");
-
-    const convData = tipo === "handover" ? espera[telefono] : activas[telefono];
-    const displayName = convData?.nombre || `+${telefono}`;
-    
-    const displaySub = convData?.nombre ? 
-      `🏫 <strong style="color:var(--text)">${esc(convData.colegio || 'Sin colegio')}</strong> | 
-       📚 ${esc(convData.curso || 'Sin curso')} | 
-       💳 DNI: <strong style="color:var(--text)">${esc(convData.dni || 'No provisto')}</strong> | 
-       👦 ${esc(convData.hijos?.join(', ') || 'Sin hijos')}` 
-      : `+${telefono}`;
-
-    document.getElementById("chat-phone").textContent = displayName;
-    const subEl = document.getElementById("chat-sub");
-    if (subEl) subEl.innerHTML = displaySub;
-
-    const statusEl = document.getElementById("chat-status");
-    const btnReact = document.getElementById("btn-react");
-    const replyContainer = document.getElementById("reply-container");
-
-    const btnBorrar = document.getElementById("btn-borrar");
-    if (tipo === "handover") {
-      statusEl.textContent = "🔴 Esperando atención humana";
-      statusEl.className = "chat-status status-handover";
-      btnReact.style.display = "inline-flex";
-      btnBorrar.style.display = "inline-flex";
-      replyContainer.classList.add("show");
-    } else {
-      statusEl.textContent = "🔵 Hablando con el bot";
-      statusEl.className = "chat-status status-activa";
-      btnReact.style.display = "none";
-      btnBorrar.style.display = "inline-flex";
-      replyContainer.classList.remove("show");
-    }
-
-    const convActual = tipo === "handover" ? espera[telefono] : activas[telefono];
-    if (convActual) renderMensajes(convActual);  
-
-    if (tipo === "handover") document.getElementById("reply-input").focus();
+  function renderCounters() {
+    $('badgeEspera').textContent = `${conversations.espera.length} espera`;
+    $('badgeActivas').textContent = `${conversations.activas.length} bot`;
+    $('countEspera').textContent = conversations.espera.length;
+    $('countActivas').textContent = conversations.activas.length;
   }
 
-  function cerrarChat() {
-    tel = null;
-    tipoActivo = null;
-    document.getElementById("placeholder").style.display = "flex";
-    document.getElementById("chat-hdr").classList.remove("show");
-    document.getElementById("reply-container").classList.remove("show");
-    document.getElementById("messages").innerHTML = "";
-    document.getElementById("btn-borrar").style.display = "none";
-    document.getElementById("btn-react").style.display = "none";
+  function setTab(tab) {
+    activeTab = tab;
+    $('tabHandover').classList.toggle('active', tab === 'handover');
+    $('tabActiva').classList.toggle('active', tab === 'activa');
+    renderConversationList();
   }
 
-  /* ── RESPUESTAS RÁPIDAS ─────────────────── */
-  function usarPlantilla(texto) {
-    const input = document.getElementById("reply-input");
-    input.value = texto;
-    input.focus();
+  function currentList() {
+    return activeTab === 'handover' ? conversations.espera : conversations.activas;
   }
 
-  /* ── RENDER MENSAJES ────────────────────── */
-  async function renderMensajes(conv) {
-    const container = document.getElementById("messages");
-    const msgs = conv.history || [];
+  function normalizeContact(conversation) {
+    return conversation.contacto || conversation;
+  }
 
-    if (msgs.length === 0) {
-      container.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:30px">Sin historial disponible</div>`;
+  function getConversationPhone(conversation) {
+    return String(conversation.telefono || conversation.from || conversation.id || '');
+  }
+
+  function renderConversationList() {
+    const query = $('searchInput').value.trim().toLowerCase();
+    const list = currentList().filter((conversation) => {
+      const contact = normalizeContact(conversation);
+      const haystack = [
+        getConversationPhone(conversation),
+        contact.nombre,
+        contact.colegio,
+        contact.curso,
+        contact.dni,
+        conversation.ultimoMensaje,
+        (contact.hijos || []).join(' ')
+      ].filter(Boolean).join(' ').toLowerCase();
+      return !query || haystack.includes(query);
+    });
+
+    if (!list.length) {
+      $('conversationList').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon">${activeTab === 'handover' ? '✅' : '💬'}</div><strong>${query ? 'Sin resultados' : activeTab === 'handover' ? 'Sin casos pendientes' : 'Sin conversaciones activas'}</strong><p>${query ? 'Probá con otro nombre, teléfono o colegio.' : 'Cuando aparezcan mensajes, los vas a ver acá.'}</p></div></div>`;
       return;
     }
 
-    const items = await Promise.all(msgs.map(async msg => {
-      const parte = msg.parts?.[0] || {};
-      const texto = parte.text || "";
-      const mediaKey = parte.mediaKey || null;
-      const mimeType = parte.mimeType || "";
+    $('conversationList').innerHTML = list.map((conversation) => conversationCard(conversation, activeTab)).join('');
+  }
 
-      const esAdmin = texto.startsWith("[Admin]:");
-      const role = esAdmin ? "admin" : msg.role;
-      const label = role === "user" ? "👤 Padre" : esAdmin ? "👨‍💼 Admin" : "🤖 Asistente";
+  function conversationCard(conversation, type) {
+    const contact = normalizeContact(conversation);
+    const phone = getConversationPhone(conversation);
+    const name = contact.nombre || `+${phone}`;
+    const colegio = contact.colegio || 'Sin colegio';
+    const curso = contact.curso || 'Sin curso';
+    const isActive = selectedPhone === phone && selectedType === type;
+    const status = type === 'handover' ? '🔴' : '🔵';
 
-      // 🔥 FIX DE INSTRUCCIONES: Ocultamos del panel los textos feos que le mandamos a Gemini para que lea fotos y audios
-      let textoFiltrado = texto;
-      if (texto.startsWith("🎙️ [MENSAJE DE VOZ]") || texto.startsWith("📸 [IMAGEN]") || texto.startsWith("El usuario envió est")) {
-        textoFiltrado = "";
+    return `
+      <button class="conv-card ${type} ${isActive ? 'active' : ''}" type="button" onclick="openConversation('${escAttr(phone)}','${type}')">
+        <div class="conv-top">
+          <div class="conv-name">${esc(name)}</div>
+          <span aria-hidden="true">${status}</span>
+        </div>
+        <div class="conv-preview">${esc(conversation.ultimoMensaje || lastMessageText(conversation) || '(sin mensajes)')}</div>
+        <div class="conv-meta">
+          <span class="mini-pill">${esc(colegio)}</span>
+          <span class="mini-pill">${esc(curso)}</span>
+          <span class="mini-pill">${timeAgo(conversation.lastSeen)}</span>
+          <span class="mini-pill">${Number(conversation.turns || 0)} turnos</span>
+        </div>
+      </button>`;
+  }
+
+  function openConversation(phone, type) {
+    selectedPhone = phone;
+    selectedType = type;
+    activeTab = type;
+    setTab(type);
+    $('layout').classList.add('chat-open');
+    renderSelectedIfAny();
+  }
+
+  function backToList() {
+    $('layout').classList.remove('chat-open');
+  }
+
+  function findSelected() {
+    if (!selectedPhone) return null;
+    const source = selectedType === 'handover' ? conversations.espera : conversations.activas;
+    return source.find((conversation) => getConversationPhone(conversation) === selectedPhone) || null;
+  }
+
+  function renderSelectedIfAny() {
+    if (!selectedPhone) {
+      renderNoSelection();
+      return;
+    }
+
+    const conversation = findSelected();
+    if (!conversation) {
+      selectedPhone = null;
+      selectedType = null;
+      renderNoSelection();
+      return;
+    }
+
+    const contact = normalizeContact(conversation);
+    const name = contact.nombre || `+${getConversationPhone(conversation)}`;
+    $('avatar').textContent = initials(name);
+    $('chatName').textContent = name;
+    $('chatSub').textContent = `${selectedType === 'handover' ? 'Esperando atención humana' : 'Hablando con el bot'} · ${contact.colegio || 'Sin colegio'} · ${contact.curso || 'Sin curso'} · DNI: ${contact.dni || 'No provisto'}`;
+
+    $('btnAssign').style.display = selectedType === 'handover' ? 'inline-flex' : 'none';
+    $('btnReact').style.display = selectedType === 'handover' ? 'inline-flex' : 'none';
+    $('btnDelete').style.display = 'inline-flex';
+    $('replyBox').classList.toggle('show', selectedType === 'handover');
+
+    renderDetails(conversation);
+    renderMessages(conversation.history || []);
+  }
+
+  function renderNoSelection() {
+    $('avatar').textContent = '?';
+    $('chatName').textContent = 'Seleccioná una conversación';
+    $('chatSub').textContent = 'El historial aparece acá.';
+    $('btnAssign').style.display = 'none';
+    $('btnReact').style.display = 'none';
+    $('btnDelete').style.display = 'none';
+    $('replyBox').classList.remove('show');
+    $('messages').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon">📋</div><strong>Seleccioná una conversación</strong><p>Elegí un caso de la lista para ver el historial, responder o reactivar el bot.</p></div></div>`;
+    $('detailStatus').textContent = 'Sin selección';
+    $('contactDetails').innerHTML = `<div class="kv-row"><span>Estado</span><span>Elegí una conversación.</span></div>`;
+  }
+
+  function renderDetails(conversation) {
+    const contact = normalizeContact(conversation);
+    $('detailStatus').textContent = selectedType === 'handover' ? 'En espera' : 'Con bot';
+    $('contactDetails').innerHTML = `
+      <div class="kv-row"><span>Nombre</span><span>${esc(contact.nombre || 'Sin dato')}</span></div>
+      <div class="kv-row"><span>Teléfono</span><span>+${esc(getConversationPhone(conversation))}</span></div>
+      <div class="kv-row"><span>Colegio</span><span>${esc(contact.colegio || 'Sin dato')}</span></div>
+      <div class="kv-row"><span>Curso</span><span>${esc(contact.curso || 'Sin dato')}</span></div>
+      <div class="kv-row"><span>DNI</span><span>${esc(contact.dni || 'Sin dato')}</span></div>
+      <div class="kv-row"><span>Hijos</span><span>${esc((contact.hijos || []).join(', ') || 'Sin dato')}</span></div>
+      <div class="kv-row"><span>Turnos</span><span>${esc(conversation.turns || 0)}</span></div>
+      <div class="kv-row"><span>Último</span><span>${esc(timeFull(conversation.lastSeen))}</span></div>
+      <div class="kv-row"><span>Asignado</span><span>${esc(conversation.assignedTo || 'Sin asignar')}</span></div>`;
+  }
+
+  async function renderMessages(history) {
+    if (!history.length) {
+      $('messages').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon">💬</div><strong>Sin historial</strong><p>Todavía no hay mensajes guardados para esta conversación.</p></div></div>`;
+      return;
+    }
+
+    const parts = await Promise.all(history.map(async (message) => {
+      const part = message.parts?.[0] || {};
+      let text = part.text || '';
+      const isAdmin = text.startsWith('[Admin]:');
+      const role = isAdmin ? 'admin' : message.role;
+      if (isAdmin) text = text.replace('[Admin]:', '').trim();
+
+      if (text.startsWith('🎙️ [MENSAJE DE VOZ]') || text.startsWith('📸 [IMAGEN]') || text.startsWith('El usuario envió est')) text = '';
+
+      let content = '';
+      if (part.mediaKey && String(part.mimeType || '').startsWith('image/')) {
+        const url = await mediaUrl(part.mediaKey);
+        if (url) content += `<img class="media-img" src="${url}" alt="Imagen enviada" onclick="window.open('${url}', '_blank')" />`;
+        else content += `<span class="hint">Imagen no disponible</span>\n`;
       }
-      
-      const textoLimpio = esAdmin ? textoFiltrado.replace("[Admin]: ", "") : textoFiltrado;
-
-      let contenido = "";
-
-      if (mediaKey && mimeType.startsWith("image/")) {
-        const blobUrl = await fetchMediaUrl(mediaKey);
-        if (blobUrl) {
-          contenido += `<img src="${blobUrl}" alt="Imagen del padre"
-            style="max-width:220px;max-height:300px;border-radius:8px;display:block;cursor:pointer;margin-bottom:${textoLimpio ? '6px' : '0'}"
-            onclick="window.open('${blobUrl}','_blank')"
-          />`;
-        } else {
-          contenido += `<span style="font-size:12px;color:var(--muted)">🖼️ Imagen no disponible</span>`;
-        }
-      } else if (mediaKey && mimeType.startsWith("audio/")) {
-        const blobUrl = await fetchMediaUrl(mediaKey);
-        if (blobUrl) {
-          contenido += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:${textoLimpio ? '6px' : '0'}">
-            <span>🎙️</span>
-            <audio controls style="height:32px;max-width:200px">
-              <source src="${blobUrl}" type="${mimeType}">
-            </audio>
-          </div>`;
-        } else {
-          contenido += `<span style="font-size:12px;color:var(--muted)">🎙️ Audio no disponible</span>`;
-        }
+      if (part.mediaKey && String(part.mimeType || '').startsWith('audio/')) {
+        const url = await mediaUrl(part.mediaKey);
+        if (url) content += `<audio controls src="${url}"></audio>`;
+        else content += `<span class="hint">Audio no disponible</span>\n`;
       }
+      content += esc(text || (part.mediaKey ? '[media]' : ''));
 
-      if (textoLimpio) contenido += `<span>${esc(textoLimpio)}</span>`;
-      if (!contenido) contenido = `<span style="color:var(--muted);font-size:12px">[media]</span>`;
-
-      const tsStr = parte.ts ? formatTs(parte.ts) : "";
-      return `<div class="msg ${role}">
-        <div class="msg-lbl"><span>${label}</span>${tsStr ? `<span class="msg-ts">${tsStr}</span>` : ""}</div>
-        <div class="bubble">${contenido}</div>
-      </div>`;
+      const label = role === 'user' ? '👤 Padre/tutor' : role === 'admin' ? '👨‍💼 Admin' : '🤖 Bot';
+      return `
+        <article class="msg ${escAttr(role)}">
+          <div class="msg-label"><span>${label}</span><span>${part.ts ? timeFull(part.ts) : ''}</span></div>
+          <div class="bubble">${content}</div>
+        </article>`;
     }));
 
-    const html = items.join("");
-    if (container.innerHTML !== html) {
-      container.innerHTML = html;
-      container.scrollTop = container.scrollHeight;
-    }
+    $('messages').innerHTML = parts.join('');
+    $('messages').scrollTop = $('messages').scrollHeight;
   }
 
-  /* ── ACCIONES ──────────────────────────── */
-  async function enviar() {
-    if (!tel || tipoActivo !== "handover") return;
-    const input = document.getElementById("reply-input");
-    const msg = input.value.trim();
-    if (!msg) return;
-
-    const btn = document.querySelector(".reply .btn-primary");
-    btn.disabled = true;
-    btn.textContent = "Enviando...";
-
+  async function mediaUrl(key) {
+    if (mediaCache.has(key)) return mediaCache.get(key);
     try {
-      const r = await fetch("/api/responder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telefono: tel, mensaje: msg }),
-        credentials: "include",
-      });
-      if (r.ok) {
-        input.value = "";
-        toast("✅ Enviado", "ok");
-        if (espera[tel]) {
-          espera[tel].history = [...(espera[tel].history || []), {
-            role: "model", parts: [{ text: `[Admin]: ${msg}` }]
-          }];
-          renderMensajes(espera[tel]);
-        }
-      } else {
-        const data = await r.json();
-        toast(`❌ ${data.error || "Error enviando"}`, "err");
-      }
-    } catch { toast("❌ Error de conexión", "err"); }
-
-    btn.disabled = false;
-    btn.textContent = "Enviar ↑";
-  }
-
-  async function reactivar() {
-    if (!tel) return;
-    const btn = document.getElementById("btn-react");
-    btn.disabled = true;
-    btn.textContent = "Cerrando ticket...";
-
-    try {
-      const r = await fetch("/api/reactivar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telefono: tel }),
-        credentials: "include",
-      });
-      if (r.ok) {
-        toast("🤖 Ticket resuelto, bot reactivado", "ok");
-        delete espera[tel];
-        cerrarChat();
-        renderListas();
-      } else {
-        toast("❌ Error reactivando", "err");
-      }
-    } catch { toast("❌ Error de conexión", "err"); }
-
-    btn.disabled = false;
-    btn.textContent = "✅ Marcar como Resuelto y Reactivar Bot";
-  }
-
-  function handleKey(e) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); }
-  }
-
-  /* ── UTILS ──────────────────────────────── */
-  /* ── FETCH MEDIA CON CREDENCIALES ─────── */
-  async function fetchMediaUrl(mediaKey) {
-    if (blobCache[mediaKey]) return blobCache[mediaKey];
-    try {
-      const r = await fetch(`/api/media?key=${encodeURIComponent(mediaKey)}`, {
-        credentials: "include"
-      });
-      if (!r.ok) return null;
-      const blob = await r.blob();
+      const response = await api('/api/media?key=' + encodeURIComponent(key));
+      if (!response.ok) return null;
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      blobCache[mediaKey] = url;
+      mediaCache.set(key, url);
       return url;
     } catch {
       return null;
     }
   }
 
-  /* ── BORRAR CHAT ──────────────────────── */
-  async function borrarChat() {
-    if (!tel) return;
-    if (!confirm(`¿Borrar el historial de +${tel}? Esta acción no se puede deshacer.`)) return;
+  function useTemplate(text) {
+    $('replyInput').value = text;
+    $('replyInput').focus();
+  }
 
-    const btn = document.getElementById("btn-borrar");
-    btn.disabled = true;
-    btn.textContent = "Borrando...";
+  async function sendReply() {
+    const message = $('replyInput').value.trim();
+    if (!selectedPhone || !message) return;
+
+    $('sendBtn').disabled = true;
+    $('sendBtn').textContent = 'Enviando...';
 
     try {
-      const r = await fetch("/api/borrar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telefono: tel }),
-        credentials: "include",
+      const response = await api('/api/responder', {
+        method: 'POST',
+        body: JSON.stringify({ telefono: selectedPhone, mensaje: message })
       });
-      if (r.ok) {
-        toast("🗑️ Historial borrado", "ok");
-        if (espera[tel]) espera[tel].history = [];
-        if (activas[tel]) activas[tel].history = [];
-        renderMensajes(espera[tel] || activas[tel] || { history: [] });
-      } else {
-        toast("❌ Error al borrar", "err");
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        toast(data.error || 'No se pudo enviar la respuesta.', 'err');
+        return;
       }
-    } catch { toast("❌ Error de conexión", "err"); }
 
-    btn.disabled = false;
-    btn.textContent = "🗑️ Borrar";
-  }
-
-  /* ── FORMATEAR TIMESTAMP ────────────────── */
-  function formatTs(ts) {
-    if (!ts) return "";
-    const d = new Date(ts);
-    const ahora = new Date();
-    const hoy = ahora.toDateString();
-    const ayer = new Date(ahora - 86400000).toDateString();
-    const hora = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-
-    if (d.toDateString() === hoy) return hora;
-    if (d.toDateString() === ayer) return `ayer ${hora}`;
-    return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" }) + " " + hora;
-  }
-
-  function esc(s) {
-    return String(s)
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-  }
-
-  function tiempo(ts) {
-    if (!ts) return "";
-    const m = Math.floor((Date.now() - ts) / 60000);
-    if (m < 1) return "ahora";
-    if (m < 60) return `hace ${m}m`;
-    const h = Math.floor(m / 60);
-    return h < 24 ? `hace ${h}h` : `hace ${Math.floor(h/24)}d`;
-  }
-
-  function toast(msg, tipo="") {
-    const el = document.getElementById("toast");
-    el.textContent = msg;
-    el.className = `show ${tipo}`;
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.classList.remove("show"), 3000);
-  }
-
-  function notificar(msg) {
-    if (!isLogged) return;
-    if (Notification.permission === "granted") {
-      new Notification("Red Colegios Admin", { body: msg });
-    } else if (Notification.permission !== "denied") {
-      Notification.requestPermission();
+      $('replyInput').value = '';
+      toast('Respuesta enviada y guardada.', 'ok');
+      await loadAll();
+    } catch {
+      toast('Error de conexión al enviar.', 'err');
+    } finally {
+      $('sendBtn').disabled = false;
+      $('sendBtn').textContent = 'Enviar respuesta';
     }
+  }
+
+  async function reactivateBot() {
+    if (!selectedPhone) return;
+    if (!confirm('¿Marcar este caso como resuelto y reactivar el bot?')) return;
+
+    try {
+      const response = await api('/api/reactivar', {
+        method: 'POST',
+        body: JSON.stringify({ telefono: selectedPhone })
+      });
+      if (!response.ok) throw new Error('reactivar');
+      toast('Caso resuelto. Bot reactivado.', 'ok');
+      selectedPhone = null;
+      selectedType = null;
+      await loadAll();
+    } catch {
+      toast('No se pudo reactivar el bot.', 'err');
+    }
+  }
+
+  async function assignCase() {
+    if (!selectedPhone) return;
+    const assignedTo = prompt('¿Quién toma este caso?', 'Admin');
+    if (!assignedTo) return;
+
+    try {
+      const response = await api('/api/asignar', {
+        method: 'POST',
+        body: JSON.stringify({ telefono: selectedPhone, assignedTo })
+      });
+      if (response.ok) {
+        toast('Caso asignado.', 'ok');
+        await loadAll();
+      } else {
+        toast('Esta instalación no tiene /api/asignar. No pasa nada, podés seguir respondiendo igual.', 'err');
+      }
+    } catch {
+      toast('No se pudo asignar el caso.', 'err');
+    }
+  }
+
+  async function deleteChat() {
+    if (!selectedPhone) return;
+    if (!confirm(`¿Borrar el historial de +${selectedPhone}? Esta acción no se puede deshacer.`)) return;
+
+    try {
+      const response = await api('/api/borrar', {
+        method: 'POST',
+        body: JSON.stringify({ telefono: selectedPhone })
+      });
+      if (!response.ok) throw new Error('borrar');
+      toast('Conversación borrada.', 'ok');
+      selectedPhone = null;
+      selectedType = null;
+      backToList();
+      await loadAll();
+    } catch {
+      toast('No se pudo borrar la conversación.', 'err');
+    }
+  }
+
+  function openConfig() {
+    $('configPanel').classList.add('show');
+    $('configPanel').setAttribute('aria-hidden', 'false');
+    $('backdrop').classList.add('show');
+    loadConfig();
+  }
+
+  function closeConfig() {
+    $('configPanel').classList.remove('show');
+    $('configPanel').setAttribute('aria-hidden', 'true');
+    $('backdrop').classList.remove('show');
+  }
+
+  async function loadConfig() {
+    try {
+      const response = await api('/api/config');
+      if (!response.ok) return;
+      const payload = await response.json();
+      const config = payload.config || payload;
+      $('cfgBotName').value = config.botName || config.nombreBot || '';
+      $('cfgModel').value = config.model || 'gemini-2.5-flash';
+      $('cfgColegios').value = Array.isArray(config.colegios) ? config.colegios.join(', ') : (config.colegios || '');
+      $('cfgTono').value = config.tono || '';
+      $('cfgTemperature').value = config.temperature ?? 0.1;
+      $('cfgTokens').value = config.maxOutputTokens ?? 4096;
+      $('cfgReset').value = config.handoverResetMinutes ?? 120;
+      $('cfgMenu').value = config.menuInicial || '';
+      $('cfgDerivacion').value = config.mensajeDerivacion || '';
+      $('cfgBase').value = config.baseConocimiento || config.knowledge || '';
+    } catch {}
+  }
+
+  async function saveConfig() {
+    const body = {
+      botName: $('cfgBotName').value.trim(),
+      model: $('cfgModel').value.trim() || 'gemini-2.5-flash',
+      colegios: $('cfgColegios').value.split(',').map((item) => item.trim()).filter(Boolean),
+      tono: $('cfgTono').value.trim(),
+      temperature: Number($('cfgTemperature').value),
+      maxOutputTokens: Number($('cfgTokens').value),
+      handoverResetMinutes: Number($('cfgReset').value),
+      menuInicial: $('cfgMenu').value,
+      mensajeDerivacion: $('cfgDerivacion').value,
+      baseConocimiento: $('cfgBase').value
+    };
+
+    try {
+      const response = await api('/api/config', {
+        method: 'PUT',
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) throw new Error('config');
+      toast('Configuración guardada.', 'ok');
+      closeConfig();
+    } catch {
+      toast('No se pudo guardar la configuración.', 'err');
+    }
+  }
+
+  function lastMessageText(conversation) {
+    const history = conversation.history || [];
+    const last = history[history.length - 1];
+    return last?.parts?.[0]?.text || '';
+  }
+
+  function initials(name) {
+    const clean = String(name || '').replace('+', '').trim();
+    if (!clean) return '?';
+    const parts = clean.split(/\s+/).slice(0, 2);
+    return parts.map((part) => part[0]).join('').toUpperCase();
+  }
+
+  function timeAgo(timestamp) {
+    if (!timestamp) return 'sin fecha';
+    const minutes = Math.floor((Date.now() - Number(timestamp)) / 60000);
+    if (minutes < 1) return 'ahora';
+    if (minutes < 60) return `hace ${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `hace ${hours}h`;
+    return `hace ${Math.floor(hours / 24)}d`;
+  }
+
+  function timeFull(timestamp) {
+    if (!timestamp) return 'Sin fecha';
+    return new Date(Number(timestamp)).toLocaleString('es-AR', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+  }
+
+  function esc(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function escAttr(value) {
+    return esc(value).replace(/`/g, '&#96;');
+  }
+
+  function toast(message, type = 'ok') {
+    const element = $('toast');
+    element.textContent = message;
+    element.className = `toast show ${type}`;
+    clearTimeout(element._timer);
+    element._timer = setTimeout(() => element.classList.remove('show'), 3000);
   }
 </script>
 </body>

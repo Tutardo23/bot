@@ -1,27 +1,43 @@
-import { handleTestMessage } from '../bot.js'; 
+import { handleTestMessage } from "../bot.js";
+import { rateLimitKey, sanitizeText } from "../security.js";
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+export default async function chatRoute(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
   try {
-    const { message } = req.body;
-    
-    // Obtenemos una ID simple para el usuario web
-    const userId = req.headers['x-forwarded-for'] || 'web-user';
+    await rateLimitKey(req, "chat-local-test", 60, 60_000);
+
+    const message = sanitizeText(req.body?.message || "", 3000);
+
+    if (!message) {
+      return res.status(400).json({ ok: false, error: "Mensaje vacío" });
+    }
+
+    const userId =
+      req.headers["x-test-user"] ||
+      req.headers["x-forwarded-for"] ||
+      req.socket?.remoteAddress ||
+      "web-user-local";
 
     const simulatedMsg = {
-      from: userId,
-      text: { body: message }
+      from: String(userId),
+      text: { body: message },
     };
 
     const reply = await handleTestMessage(simulatedMsg);
-    
-    return res.status(200).json({ reply });
 
+    return res.status(200).json({
+      ok: true,
+      reply: reply || "",
+    });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error en /api/chat:", error);
+
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.publicMessage || error.message || "Internal Server Error",
+    });
   }
 }
