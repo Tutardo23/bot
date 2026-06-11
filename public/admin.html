@@ -479,12 +479,157 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
     }
+  
+    /* Mejoras profesionales sin emojis */
+    .ui-icon {
+      width: 18px;
+      height: 18px;
+      display: inline-block;
+      vertical-align: -3px;
+      flex: 0 0 auto;
+    }
+    .icon-xl { width: 28px; height: 28px; }
+    .icon-sm { width: 15px; height: 15px; }
+
+    .login-icon, .logo-mark, .empty-card .icon {
+      color: #eef4ff;
+    }
+
+    .logo-mark, .login-icon {
+      position: relative;
+      overflow: hidden;
+    }
+    .logo-mark::after, .login-icon::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent, rgba(255,255,255,.22), transparent);
+      transform: translateX(-120%);
+      animation: sheen 5s ease-in-out infinite;
+    }
+    @keyframes sheen {
+      0%, 72% { transform: translateX(-120%); }
+      100% { transform: translateX(120%); }
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      display: inline-block;
+      border-radius: 999px;
+      margin-right: 7px;
+      box-shadow: 0 0 0 5px rgba(148, 163, 184, .08);
+      flex: 0 0 auto;
+    }
+    .status-dot.danger { background: var(--red); box-shadow: 0 0 0 5px rgba(251, 113, 133, .10); }
+    .status-dot.info { background: var(--blue); box-shadow: 0 0 0 5px rgba(56, 189, 248, .10); }
+    .status-dot.ok { background: var(--green); box-shadow: 0 0 0 5px rgba(34, 197, 94, .10); }
+
+    .btn.with-icon, .seg-btn, .quick-replies .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .topbar {
+      border-bottom: 1px solid rgba(148, 163, 184, .18);
+      background: rgba(8, 11, 18, .74);
+      backdrop-filter: blur(24px);
+    }
+    .panel-head, .chat-header, .details-panel, .sidebar, .chat-shell, .config-panel {
+      backdrop-filter: blur(22px);
+    }
+    .conv-card {
+      text-align: left;
+    }
+    .conv-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .empty-card .icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, rgba(124, 140, 255, .18), rgba(56, 189, 248, .12));
+      border: 1px solid rgba(148, 163, 184, .16);
+      margin-inline: auto;
+    }
+    .empty-card .icon .ui-icon {
+      width: 27px;
+      height: 27px;
+    }
+    .msg-label {
+      letter-spacing: .01em;
+    }
+    .quick-replies .btn {
+      white-space: nowrap;
+    }
+    .config-head h3 {
+      letter-spacing: -.03em;
+    }
+
   </style>
 </head>
 <body>
+
+  <svg aria-hidden="true" focusable="false" width="0" height="0" style="position:absolute;left:-9999px;overflow:hidden">
+    <symbol id="icon-bot" viewBox="0 0 24 24">
+      <path d="M8 7V5a4 4 0 0 1 8 0v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <rect x="4" y="7" width="16" height="13" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M9 13h.01M15 13h.01M9 17h6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-school" viewBox="0 0 24 24">
+      <path d="M3 21h18M5 21V9l7-4 7 4v12M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 11h.01M12 11h.01M15 11h.01" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24">
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M19.4 15a8.7 8.7 0 0 0 .1-1.1 8.7 8.7 0 0 0-.1-1.1l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.9-1.1L14.8 5H9.2l-.4 2.7A8 8 0 0 0 7 8.8l-2.5-1-2 3.5 2.1 1.5a8.7 8.7 0 0 0-.1 1.1 8.7 8.7 0 0 0 .1 1.1l-2.1 1.5 2 3.5 2.5-1a8 8 0 0 0 1.8 1.1l.4 2.7h5.6l.4-2.7a8 8 0 0 0 1.9-1.1l2.4 1 2-3.5-2.1-1.5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.9"/>
+      <path d="m16.5 16.5 4 4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24">
+      <path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-chat" viewBox="0 0 24 24">
+      <path d="M5 18.5 3.8 22l4.1-1.4A10 10 0 0 0 12 21c5 0 9-3.6 9-8s-4-8-9-8-9 3.6-9 8c0 2.1.9 4 2.4 5.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-clipboard" viewBox="0 0 24 24">
+      <path d="M9 5h6M9 4.5A2.5 2.5 0 0 1 11.5 2h1A2.5 2.5 0 0 1 15 4.5V6H9V4.5Z" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <rect x="5" y="4" width="14" height="18" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M8.5 12h7M8.5 16h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24">
+      <circle cx="8" cy="14" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 14h9M18 14v3M15 14v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24">
+      <path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M14 3v5h5M8 13h8M8 17h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-help" viewBox="0 0 24 24">
+      <path d="M12 17h.01M9.4 9.5A3 3 0 0 1 12.2 7c1.8 0 3.1 1.1 3.1 2.7 0 1.2-.7 1.9-1.7 2.5-1 .6-1.6 1.2-1.6 2.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
   <section class="login-screen" id="loginScreen" aria-label="Ingreso al panel">
     <form class="login-card" id="loginForm">
-      <div class="login-icon" aria-hidden="true">🤖</div>
+      <div class="login-icon" aria-hidden="true"><svg class="ui-icon icon-xl"><use href="#icon-bot"></use></svg></div>
       <div class="brand">
         <h1>Bot<span>.</span>Red</h1>
         <p>Panel propio para atender padres, ver conversaciones y ajustar el bot sin tocar código.</p>
@@ -501,7 +646,7 @@
   <main class="app" id="app" aria-label="Panel de administración">
     <header class="topbar">
       <div class="top-title">
-        <div class="logo-mark" aria-hidden="true">🏫</div>
+        <div class="logo-mark" aria-hidden="true"><svg class="ui-icon"><use href="#icon-school"></use></svg></div>
         <div style="min-width:0">
           <h2>Panel Bot · Red de Colegios</h2>
           <p><span class="live-dot" style="display:inline-block;margin-right:8px"></span>Atención humana, bot y configuración</p>
@@ -513,7 +658,7 @@
           <span class="pill pill-red" id="badgeEspera">0 espera</span>
           <span class="pill pill-blue" id="badgeActivas">0 bot</span>
         </div>
-        <button class="btn btn-small" type="button" onclick="openConfig()">⚙️ <span class="label-text">Configurar</span></button>
+        <button class="btn btn-small with-icon" type="button" onclick="openConfig()"><svg class="ui-icon icon-sm" aria-hidden="true"><use href="#icon-settings"></use></svg><span class="label-text">Configurar</span></button>
         <button class="btn btn-small btn-ghost" type="button" onclick="logout()">Salir</button>
       </div>
     </header>
@@ -526,13 +671,13 @@
             <button class="btn btn-small btn-ghost" type="button" onclick="loadAll()">Actualizar</button>
           </div>
           <div class="search-wrap">
-            <span class="search-icon" aria-hidden="true">⌕</span>
+            <span class="search-icon" aria-hidden="true"><svg class="ui-icon icon-sm"><use href="#icon-search"></use></svg></span>
             <label class="sr-only" for="searchInput">Buscar conversación</label>
             <input class="input" id="searchInput" type="search" placeholder="Buscar por nombre, teléfono, colegio..." />
           </div>
           <div class="segment" role="tablist" aria-label="Filtro de conversaciones">
-            <button class="seg-btn active" id="tabHandover" type="button" onclick="setTab('handover')">🔴 En espera <span id="countEspera">0</span></button>
-            <button class="seg-btn" id="tabActiva" type="button" onclick="setTab('activa')">🔵 Con bot <span id="countActivas">0</span></button>
+            <button class="seg-btn active" id="tabHandover" type="button" onclick="setTab('handover')"><span class="status-dot danger" aria-hidden="true"></span>En espera <span id="countEspera">0</span></button>
+            <button class="seg-btn" id="tabActiva" type="button" onclick="setTab('activa')"><span class="status-dot info" aria-hidden="true"></span>Con bot <span id="countActivas">0</span></button>
           </div>
         </div>
         <div class="conversation-list" id="conversationList"></div>
@@ -558,7 +703,7 @@
         <div class="messages" id="messages">
           <div class="empty-state">
             <div class="empty-card">
-              <div class="icon">📋</div>
+              <div class="icon"><svg class="ui-icon"><use href="#icon-clipboard"></use></svg></div>
               <strong>Seleccioná una conversación</strong>
               <p>Elegí un caso de la lista para ver el historial, responder o reactivar el bot.</p>
             </div>
@@ -567,10 +712,10 @@
 
         <form class="reply-box" id="replyBox">
           <div class="quick-replies" aria-label="Respuestas rápidas">
-            <button class="btn btn-small" type="button" onclick="useTemplate('🔑 Tu contraseña fue blanqueada. Probá ingresar con tu DNI como clave provisoria. Cualquier cosa, avisame por acá.')">🔑 Blanqueo DNI</button>
-            <button class="btn btn-small" type="button" onclick="useTemplate('📄 Ya enviamos la constancia de alumno regular al correo registrado. ¡Gracias!')">📄 Constancia</button>
-            <button class="btn btn-small" type="button" onclick="useTemplate('Para poder ayudarte mejor necesito que me confirmes: nombre completo, DNI, colegio y curso del alumno.')">❓ Pedir datos</button>
-            <button class="btn btn-small" type="button" onclick="useTemplate('Estoy revisando tu caso. Te aviso por este mismo medio apenas tenga la confirmación.')">⏳ Revisando</button>
+            <button class="btn btn-small" type="button" onclick="useTemplate('Tu contraseña fue blanqueada. Probá ingresar con tu DNI como clave provisoria. Cualquier cosa, avisame por acá.')"><svg class="ui-icon icon-sm" aria-hidden="true"><use href="#icon-key"></use></svg>Blanqueo DNI</button>
+            <button class="btn btn-small" type="button" onclick="useTemplate('Ya enviamos la constancia de alumno regular al correo registrado. Gracias.')"><svg class="ui-icon icon-sm" aria-hidden="true"><use href="#icon-file"></use></svg>Constancia</button>
+            <button class="btn btn-small" type="button" onclick="useTemplate('Para poder ayudarte mejor necesito que me confirmes: nombre completo, DNI, colegio y curso del alumno.')"><svg class="ui-icon icon-sm" aria-hidden="true"><use href="#icon-help"></use></svg>Pedir datos</button>
+            <button class="btn btn-small" type="button" onclick="useTemplate('Estoy revisando tu caso. Te aviso por este mismo medio apenas tenga la confirmación.')"><svg class="ui-icon icon-sm" aria-hidden="true"><use href="#icon-clock"></use></svg>Revisando</button>
           </div>
           <div class="reply-row">
             <label class="sr-only" for="replyInput">Respuesta al padre o tutor</label>
@@ -594,7 +739,7 @@
           </div>
           <div class="info-card">
             <h4>Atajos</h4>
-            <button class="btn" type="button" onclick="useTemplate('¡Claro! Ya lo reviso y te respondo por acá.')">Respuesta amable</button>
+            <button class="btn" type="button" onclick="useTemplate('Claro, ya lo reviso y te respondo por acá.')">Respuesta amable</button>
             <button class="btn" type="button" onclick="useTemplate('¿Me podés mandar una captura de pantalla del error para verlo mejor?')">Pedir captura</button>
             <button class="btn" type="button" onclick="useTemplate('Te confirmo que el caso quedó derivado al equipo correspondiente.')">Confirmar derivación</button>
           </div>
@@ -829,7 +974,8 @@
     });
 
     if (!list.length) {
-      $('conversationList').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon">${activeTab === 'handover' ? '✅' : '💬'}</div><strong>${query ? 'Sin resultados' : activeTab === 'handover' ? 'Sin casos pendientes' : 'Sin conversaciones activas'}</strong><p>${query ? 'Probá con otro nombre, teléfono o colegio.' : 'Cuando aparezcan mensajes, los vas a ver acá.'}</p></div></div>`;
+      const emptyIcon = activeTab === 'handover' ? 'icon-check' : 'icon-chat';
+      $('conversationList').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon"><svg class="ui-icon"><use href="#${emptyIcon}"></use></svg></div><strong>${query ? 'Sin resultados' : activeTab === 'handover' ? 'Sin casos pendientes' : 'Sin conversaciones activas'}</strong><p>${query ? 'Probá con otro nombre, teléfono o colegio.' : 'Cuando aparezcan mensajes, los vas a ver acá.'}</p></div></div>`;
       return;
     }
 
@@ -843,13 +989,13 @@
     const colegio = contact.colegio || 'Sin colegio';
     const curso = contact.curso || 'Sin curso';
     const isActive = selectedPhone === phone && selectedType === type;
-    const status = type === 'handover' ? '🔴' : '🔵';
+    const status = type === 'handover' ? '<span class="status-dot danger" aria-hidden="true"></span><span>Humano</span>' : '<span class="status-dot info" aria-hidden="true"></span><span>Bot</span>';
 
     return `
       <button class="conv-card ${type} ${isActive ? 'active' : ''}" type="button" onclick="openConversation('${escAttr(phone)}','${type}')">
         <div class="conv-top">
           <div class="conv-name">${esc(name)}</div>
-          <span aria-hidden="true">${status}</span>
+          <span class="conv-status">${status}</span>
         </div>
         <div class="conv-preview">${esc(conversation.ultimoMensaje || lastMessageText(conversation) || '(sin mensajes)')}</div>
         <div class="conv-meta">
@@ -917,7 +1063,7 @@
     $('btnReact').style.display = 'none';
     $('btnDelete').style.display = 'none';
     $('replyBox').classList.remove('show');
-    $('messages').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon">📋</div><strong>Seleccioná una conversación</strong><p>Elegí un caso de la lista para ver el historial, responder o reactivar el bot.</p></div></div>`;
+    $('messages').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon"><svg class="ui-icon"><use href="#icon-clipboard"></use></svg></div><strong>Seleccioná una conversación</strong><p>Elegí un caso de la lista para ver el historial, responder o reactivar el bot.</p></div></div>`;
     $('detailStatus').textContent = 'Sin selección';
     $('contactDetails').innerHTML = `<div class="kv-row"><span>Estado</span><span>Elegí una conversación.</span></div>`;
   }
@@ -939,7 +1085,7 @@
 
   async function renderMessages(history) {
     if (!history.length) {
-      $('messages').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon">💬</div><strong>Sin historial</strong><p>Todavía no hay mensajes guardados para esta conversación.</p></div></div>`;
+      $('messages').innerHTML = `<div class="empty-state"><div class="empty-card"><div class="icon"><svg class="ui-icon"><use href="#icon-chat"></use></svg></div><strong>Sin historial</strong><p>Todavía no hay mensajes guardados para esta conversación.</p></div></div>`;
       return;
     }
 
@@ -950,7 +1096,7 @@
       const role = isAdmin ? 'admin' : message.role;
       if (isAdmin) text = text.replace('[Admin]:', '').trim();
 
-      if (text.startsWith('🎙️ [MENSAJE DE VOZ]') || text.startsWith('📸 [IMAGEN]') || text.startsWith('El usuario envió est')) text = '';
+      if (text.startsWith('El usuario envió est')) text = '';
 
       let content = '';
       if (part.mediaKey && String(part.mimeType || '').startsWith('image/')) {
@@ -965,7 +1111,7 @@
       }
       content += esc(text || (part.mediaKey ? '[media]' : ''));
 
-      const label = role === 'user' ? '👤 Padre/tutor' : role === 'admin' ? '👨‍💼 Admin' : '🤖 Bot';
+      const label = role === 'user' ? 'Padre/tutor' : role === 'admin' ? 'Admin' : 'Bot';
       return `
         <article class="msg ${escAttr(role)}">
           <div class="msg-label"><span>${label}</span><span>${part.ts ? timeFull(part.ts) : ''}</span></div>
