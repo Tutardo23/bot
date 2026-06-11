@@ -64,6 +64,50 @@ function isGreetingOnly(text) {
   ].includes(t);
 }
 
+function isHandoverNoise(text = "") {
+  const t = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+
+  return (
+    t.includes("[admin]") ||
+    t.includes("derivar_humano") ||
+    t.includes("tus datos fueron enviados al equipo de soporte") ||
+    t.includes("equipo de soporte") ||
+    t.includes("estoy revisando tu caso") ||
+    t.includes("el asistente quedo reactivado") ||
+    t.includes("ya podes seguir escribiendome") ||
+    t.includes("tuve un pequeno micro-corte tecnico") ||
+    t.includes("micro-corte tecnico") ||
+    t.includes("ya derivamos tu consulta")
+  );
+}
+
+function shouldStartFreshAfterReactivation(session, text, mediaData) {
+  if (mediaData) return false;
+  if (!isGreetingOnly(text)) return false;
+
+  const history = Array.isArray(session.history) ? session.history : [];
+  const hasHandoverContext = history.some((msg) =>
+    (Array.isArray(msg.parts) ? msg.parts : []).some((part) => isHandoverNoise(part?.text))
+  );
+
+  return Boolean(session.isReturningUser || hasHandoverContext || session.justReactivated);
+}
+
+function resetSessionForNewStart(session) {
+  session.status = "ACTIVE";
+  session.isReturningUser = false;
+  session.justReactivated = false;
+  session.lastIntent = null;
+  session.tempData = {};
+  session.history = [];
+  session.ultimoMensaje = "";
+  return session;
+}
+
+
 function buildKnowledge(config) {
   const fileKnowledge = readFileSafe("datos_colegio.txt").trim();
   const panelKnowledge = String(config.baseConocimiento || "").trim();
@@ -83,6 +127,7 @@ function limpiarHistorial(history = [], max = 14) {
     .map((msg) => ({
       role: msg.role,
       parts: (Array.isArray(msg.parts) ? msg.parts : [])
+        .filter((part) => !isHandoverNoise(part?.text))
         .map((part) => {
           const out = {};
           if (part?.text) out.text = cleanVisibleText(part.text);
@@ -100,7 +145,7 @@ function limpiarHistorial(history = [], max = 14) {
     .filter((msg) => msg.parts.length);
 
   // Gemini exige que el primer mensaje del historial sea "user".
-  // Redis puede traer conversaciones viejas que arrancan con "model".
+  // Además, después de derivaciones, no queremos que el bot se quede pegado al caso viejo.
   const normalized = [];
 
   for (const msg of cleaned) {
@@ -108,7 +153,6 @@ function limpiarHistorial(history = [], max = 14) {
 
     const last = normalized[normalized.length - 1];
 
-    // Evita roles consecutivos iguales. Gemini puede rechazar esos historiales.
     if (last && last.role === msg.role) {
       last.parts.push(...msg.parts);
       last.parts = last.parts.slice(-6);
@@ -246,6 +290,11 @@ CONTEXTO ACTUAL:
 BASE DE CONOCIMIENTO:
 ${buildKnowledge(config)}
 
+REGLA CRÍTICA DE MEMORIA:
+- No digas que una consulta ya fue derivada, que soporte la está revisando o que el equipo se va a contactar, salvo que el estado actual sea HANDOVER.
+- Si el estado actual es ACTIVE y el usuario saluda, tratá la conversación como nueva.
+- El historial sirve como contexto, pero no debe obligarte a seguir con un caso viejo si el usuario arranca una consulta nueva.
+
 REGLAS DE CALIDAD:
 1. Respondé como una persona amable de secretaría/soporte escolar: simple, útil y confiable.
 2. No inventes datos. Si no está en la base, aclaralo con cuidado y ofrecé derivar o indicar secretaría.
@@ -342,6 +391,19 @@ export async function handleTestMessage(message) {
   const contacto = await getContacto(from);
 
   const resetMinutes = Number(config.handoverResetMinutes || 120);
+
+  // Si viene de una derivación/reactivación y el usuario saluda, arrancamos limpio.
+  // Esto evita que el bot siga hablando del caso técnico anterior.
+  if (shouldStartFreshAfterReactivation(session, text, mediaData)) {
+    session = resetSessionForNewStart(session);
+    const menu = cleanVisibleText(
+      config.menuInicial ||
+        "Hola, soy el asistente virtual. ¿En qué te puedo ayudar?"
+    );
+    session.greeted = true;
+    await appendTurnAndSave(session, from, text, menu);
+    return menu;
+  }
 
   if (session.status === "HANDOVER") {
     const minutos = (Date.now() - Number(session.lastSeen || 0)) / 1000 / 60;
