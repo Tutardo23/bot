@@ -78,7 +78,7 @@ function buildKnowledge(config) {
 }
 
 function limpiarHistorial(history = [], max = 14) {
-  return history
+  const cleaned = history
     .filter((msg) => msg?.role === "user" || msg?.role === "model")
     .map((msg) => ({
       role: msg.role,
@@ -97,8 +97,33 @@ function limpiarHistorial(history = [], max = 14) {
         })
         .slice(0, 4),
     }))
-    .filter((msg) => msg.parts.length)
-    .slice(-max);
+    .filter((msg) => msg.parts.length);
+
+  // Gemini exige que el primer mensaje del historial sea "user".
+  // Redis puede traer conversaciones viejas que arrancan con "model".
+  const normalized = [];
+
+  for (const msg of cleaned) {
+    if (!normalized.length && msg.role !== "user") continue;
+
+    const last = normalized[normalized.length - 1];
+
+    // Evita roles consecutivos iguales. Gemini puede rechazar esos historiales.
+    if (last && last.role === msg.role) {
+      last.parts.push(...msg.parts);
+      last.parts = last.parts.slice(-6);
+    } else {
+      normalized.push(msg);
+    }
+  }
+
+  const recent = normalized.slice(-max);
+
+  while (recent.length && recent[0].role !== "user") {
+    recent.shift();
+  }
+
+  return recent;
 }
 
 function buildParts(text, mediaData) {
